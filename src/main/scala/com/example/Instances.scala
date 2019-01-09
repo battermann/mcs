@@ -56,8 +56,6 @@ object Instances {
       ref <- Ref.of[IO, SearchState[samegame.Position, samegame.Game, Int]](initial)
     } yield
       new Game[IO, samegame.Position, samegame.Game, Int] {
-        val rnd = new scala.util.Random()
-
         def applyMove(move: samegame.Position): IO[Unit] =
           ref.update { searchState =>
             val nextPosition = SameGame.applyMove(move, searchState.gameState.position)
@@ -73,7 +71,7 @@ object Instances {
           ref.get.map(searchState => SameGame.legalMoves(searchState.gameState.position))
 
         def rndInt(bound: Int): IO[Int] =
-          IO(rnd.nextInt(bound))
+          IO(scala.util.Random.nextInt(bound))
 
         def rndSimulation(): IO[Unit] = {
           val playRndLegalMove = for {
