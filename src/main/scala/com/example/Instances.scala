@@ -50,8 +50,7 @@ object Instances {
       def bestResult: State[SearchState[Position, samegame.Game, Int], Option[Result[Position, Int]]] =
         State.inspect(_.bestResult)
 
-      def update(f: S => S): State[S, Unit]   = State.modify[S](f)
-      def pure[A](a: A): State[S, A]          = State.pure[S, A](a)
+      def update(f: S => S): State[S, Unit] = State.modify[S](f)
     }
 
   def withIORef(initial: SearchState[samegame.Position, samegame.Game, Int]): IO[Game[IO, samegame.Position, samegame.Game, Int]] =
@@ -94,8 +93,7 @@ object Instances {
         override def bestResult: IO[Option[Result[Position, Int]]] =
           ref.get.map(_.bestResult)
 
-        def update(f: S => S): IO[Unit]   = ref.update(f)
-        def pure[A](a: A): IO[A]          = a.pure[IO]
+        def update(f: S => S): IO[Unit] = ref.update(f)
       }
 
   val showResult: Show[Option[Result[samegame.Position, Int]]] = (t: Option[Result[Position, Int]]) =>

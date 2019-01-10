@@ -33,7 +33,6 @@ trait Game[F[_], Move, Position, Score] {
   def gameState: F[GameState[Move, Position, Score]]
   def bestResult: F[Option[Result[Move, Score]]]
   def update(f: S => S): F[Unit]
-  def pure[A](a: A): F[A]
 }
 
 object Game {
@@ -59,7 +58,7 @@ object Search {
       legalMoves   <- game.legalMoves
       currentState <- game.gameState
       isTerminalPosition <- legalMoves match {
-        case Nil => game.pure(true)
+        case Nil => Monad[F].pure(true)
         case moves =>
           val results = if (level <= 1) {
             moves.traverse { move =>
