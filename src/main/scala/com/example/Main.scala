@@ -70,9 +70,9 @@ object Search {
             }
 
           } else {
-            moves.traverse { m =>
+            moves.traverse { move =>
               for {
-                nextState <- game.update(_.copy(gameState = currentState)) *> game.applyMove(m) *> game.gameState
+                nextState <- game.update(_.copy(gameState = currentState)) *> game.applyMove(move) *> game.gameState
                 simResult <- nestedMonteCarlo(level - 1, game) *> game.gameState
               } yield (simResult, nextState)
             }
