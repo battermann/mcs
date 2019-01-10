@@ -1,6 +1,6 @@
 package com.example
 
-import cats.Monad
+import cats.{Monad, Show}
 import cats.effect.{ExitCode, IO, IOApp}
 import cats.implicits._
 import com.example.Prng.Seed
@@ -29,12 +29,10 @@ trait Game[F[_], Move, Position, Score] {
   def applyMove(move: Move): F[Unit]
   def legalMoves: F[List[Move]]
   def rndInt(bound: Int): F[Int]
-  def rndSimulation(): F[Unit]
-
-  def set(searchState: S): F[Unit]
-  def get(): F[S]
-  def inspect[A](f: S => A): F[A]
-  def modify(f: S => S): F[Unit]
+  def rndSimulation: F[Unit]
+  def gameState: F[GameState[Move, Position, Score]]
+  def bestResult: F[Option[Result[Move, Score]]]
+  def update(f: S => S): F[Unit]
   def pure[A](a: A): F[A]
 }
 
@@ -43,72 +41,63 @@ object Game {
 }
 
 object Search {
+  def updateBestResultAndSetNextState[Move, Position, Score](simResult: GameState[Move, Position, Score], nextState: GameState[Move, Position, Score])(
+      searchState: SearchState[Move, Position, Score])(implicit ord: Ordering[Score]): SearchState[Move, Position, Score] =
+    searchState match {
+      case SearchState(seed, _, None) =>
+        SearchState(seed = seed, gameState = nextState, bestResult = Result(simResult.playedMoves, simResult.score).some)
+      case SearchState(seed, _, Some(result)) =>
+        if (ord.gt(simResult.score, result.score)) {
+          SearchState(seed = seed, gameState = nextState, bestResult = Result(simResult.playedMoves, simResult.score).some)
+        } else {
+          SearchState(seed = seed, gameState = nextState, bestResult = result.some)
+        }
+    }
 
   def simpleMonteCarlo[F[_]: Monad, Move, Position, Score](game: Game[F, Move, Position, Score])(implicit ord: Ordering[Score]): F[Unit] = {
-
     val playMoveWithBestSimulationResult = for {
       moves        <- game.legalMoves
-      currentState <- game.inspect(_.gameState)
+      currentState <- game.gameState
       isTerminalPosition <- moves match {
         case Nil => game.pure(true)
         case ms =>
           ms.traverse { m =>
               for {
-                _         <- game.modify(_.copy(gameState = currentState))
-                _         <- game.applyMove(m)
-                nextState <- game.inspect(_.gameState)
-                _         <- game.rndSimulation()
-                simResult <- game.inspect(_.gameState)
+                nextState <- game.update(_.copy(gameState = currentState)) *> game.applyMove(m) *> game.gameState
+                simResult <- game.rndSimulation *> game.gameState
               } yield (simResult, nextState)
             }
             .map(_.maxBy(_._1.score))
-            .flatMap {
-              case (simResult, nextState) =>
-                game
-                  .modify {
-                    case st @ SearchState(_, _, None) =>
-                      st.copy(gameState = nextState, bestResult = Result(simResult.playedMoves, simResult.score).some)
-                    case st @ SearchState(_, _, Some(result)) =>
-                      if (ord.gt(simResult.score, result.score)) {
-                        st.copy(gameState = nextState, bestResult = Result(simResult.playedMoves, simResult.score).some)
-                      } else {
-                        st.copy(gameState = nextState, bestResult = result.some)
-                      }
-                  }
-                  .as(false)
-            }
+            .flatMap { case (simResult, nextState) => game.update(updateBestResultAndSetNextState(simResult, nextState)).as(false) }
       }
     } yield isTerminalPosition
 
-    playMoveWithBestSimulationResult.iterateUntil(b => b).void
+    playMoveWithBestSimulationResult.iterateUntil(isTerminalPosition => isTerminalPosition).void
   }
 }
 
 object Main extends IOApp {
-
   private val game  = data.Games.game1
   private val score = SameGame.score(game)
   private val s     = SearchState(Seed(5L), GameState(List.empty[samegame.Position], score, game), None)
 
+  private implicit val showResult: Show[Option[Result[samegame.Position, Int]]] = Instances.showResult
+
+  private def putStrLn[T: Show](t: T): IO[Unit] = IO(println(show"$t"))
+
   val resultState: IO[Unit] = {
-    val instance = Instances.createState()
-    val Some(r)  = Search.simpleMonteCarlo(instance).runS(s).value.bestResult
-    IO(println(r.moves.reverse.map(p => s"(${p.col}, ${p.row})").mkString("[", ", ", "]"))) *> IO(println(s"Score: ${r.score}"))
+    val instance = Instances.withState()
+    val result   = Search.simpleMonteCarlo(instance).runS(s).value.bestResult
+    putStrLn(result)
   }
 
   val resultIORef: IO[Unit] = for {
-    instance    <- Instances.createIORef(s)
-    _           <- Search.simpleMonteCarlo(instance)
-    maybeResult <- instance.inspect(_.bestResult)
-    _ <- maybeResult match {
-      case Some(r) =>
-        IO(println(r.moves.reverse.map(p => s"(${p.col}, ${p.row})").mkString("[", ", ", "]"))) *> IO(println(s"Score: ${r.score}"))
-      case None =>
-        ().pure[IO]
-    }
+    instance <- Instances.withIORef(s)
+    result   <- Search.simpleMonteCarlo(instance) *> instance.bestResult
+    _        <- putStrLn(result)
   } yield ()
 
   def run(args: List[String]): IO[ExitCode] =
-    resultIORef.as(ExitCode.Success)
-  // resultState.as(ExitCode.Success)
+    // resultIORef.as(ExitCode.Success)
+    resultState.as(ExitCode.Success)
 }

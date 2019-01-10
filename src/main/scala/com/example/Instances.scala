@@ -1,14 +1,14 @@
 package com.example
 
+import cats.Show
 import cats.data.State
 import cats.effect.IO
 import cats.effect.concurrent.Ref
-import com.example.samegame.SameGame
+import com.example.samegame.{Position, SameGame}
 import cats.implicits._
 
 object Instances {
-  def createState()
-    : Game[State[SearchState[samegame.Position, samegame.Game, Int], ?], samegame.Position, samegame.Game, Int] =
+  def withState(): Game[State[SearchState[samegame.Position, samegame.Game, Int], ?], samegame.Position, samegame.Game, Int] =
     new Game[State[SearchState[samegame.Position, samegame.Game, Int], ?], samegame.Position, samegame.Game, Int] {
 
       def applyMove(move: samegame.Position): State[S, Unit] =
@@ -32,7 +32,7 @@ object Instances {
         (searchState.copy(seed = nextSeed), i)
       }
 
-      def rndSimulation(): State[S, Unit] = {
+      def rndSimulation: State[S, Unit] = {
         val playRndLegalMove = for {
           moves <- legalMoves
           isTerminalPosition <- moves match {
@@ -44,14 +44,17 @@ object Instances {
         playRndLegalMove.iterateUntil(isTerminalPosition => isTerminalPosition).void
       }
 
-      def set(searchState: S): State[S, Unit] = State.set[S](searchState)
-      def get(): State[S, S]                  = State.get[S]
-      def inspect[A](f: S => A): State[S, A]  = State.inspect[S, A](f)
-      def modify(f: S => S): State[S, Unit]   = State.modify[S](f)
+      def gameState: State[SearchState[Position, samegame.Game, Int], GameState[Position, samegame.Game, Int]] =
+        State.inspect(_.gameState)
+
+      def bestResult: State[SearchState[Position, samegame.Game, Int], Option[Result[Position, Int]]] =
+        State.inspect(_.bestResult)
+
+      def update(f: S => S): State[S, Unit]   = State.modify[S](f)
       def pure[A](a: A): State[S, A]          = State.pure[S, A](a)
     }
 
-  def createIORef(initial: SearchState[samegame.Position, samegame.Game, Int]): IO[Game[IO, samegame.Position, samegame.Game, Int]] =
+  def withIORef(initial: SearchState[samegame.Position, samegame.Game, Int]): IO[Game[IO, samegame.Position, samegame.Game, Int]] =
     for {
       ref <- Ref.of[IO, SearchState[samegame.Position, samegame.Game, Int]](initial)
     } yield
@@ -73,7 +76,7 @@ object Instances {
         def rndInt(bound: Int): IO[Int] =
           IO(scala.util.Random.nextInt(bound))
 
-        def rndSimulation(): IO[Unit] = {
+        def rndSimulation: IO[Unit] = {
           val playRndLegalMove = for {
             moves <- legalMoves
             isTerminalPosition <- moves match {
@@ -85,11 +88,21 @@ object Instances {
           playRndLegalMove.iterateUntil(isTerminalPosition => isTerminalPosition).void
         }
 
-        def set(searchState: S): IO[Unit] = ref.set(searchState)
-        def get(): IO[S]                  = ref.get
-        def inspect[A](f: S => A): IO[A]  = ref.get.map(f)
-        def modify(f: S => S): IO[Unit]   = ref.update(f)
+        def gameState: IO[GameState[Position, samegame.Game, Int]] =
+          ref.get.map(_.gameState)
+
+        override def bestResult: IO[Option[Result[Position, Int]]] =
+          ref.get.map(_.bestResult)
+
+        def update(f: S => S): IO[Unit]   = ref.update(f)
         def pure[A](a: A): IO[A]          = a.pure[IO]
       }
 
+  val showResult: Show[Option[Result[samegame.Position, Int]]] = (t: Option[Result[Position, Int]]) =>
+    t match {
+      case Some(r) => s"""${r.moves.reverse.map(p => s"(${p.col}, ${p.row})").mkString("[", ", ", "]")}
+                         |Score: ${r.score}
+                         |""".stripMargin
+      case None    => "no result found"
+  }
 }
