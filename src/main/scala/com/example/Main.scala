@@ -27,12 +27,13 @@ trait Game[F[_], Move, Position, Score] {
   type S = SearchState[Move, Position, Score]
 
   def applyMove(move: Move): F[Unit]
+  def update(f: S => S): F[Unit]
+  def rndSimulation: F[Unit]
+
   def legalMoves: F[List[Move]]
   def rndInt(bound: Int): F[Int]
-  def rndSimulation: F[Unit]
   def gameState: F[GameState[Move, Position, Score]]
   def bestResult: F[Option[Result[Move, Score]]]
-  def update(f: S => S): F[Unit]
 }
 
 object Game {
