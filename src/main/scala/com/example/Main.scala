@@ -44,14 +44,14 @@ object Search {
   def updateBestResultAndSetNextState[Move, Position, Score](simResult: GameState[Move, Position, Score], nextState: GameState[Move, Position, Score])(
       searchState: SearchState[Move, Position, Score])(implicit ord: Ordering[Score]): SearchState[Move, Position, Score] =
     searchState match {
-      case SearchState(seed, _, None) =>
-        SearchState(seed = seed, gameState = nextState, bestResult = Result(simResult.playedMoves, simResult.score).some)
-      case SearchState(seed, _, Some(result)) =>
-        if (ord.gt(simResult.score, result.score)) {
-          SearchState(seed = seed, gameState = nextState, bestResult = Result(simResult.playedMoves, simResult.score).some)
-        } else {
-          SearchState(seed = seed, gameState = nextState, bestResult = result.some)
-        }
+      case st @ SearchState(_, _, None) =>
+        st.copy(gameState = nextState, bestResult = Result(simResult.playedMoves, simResult.score).some)
+      case st @ SearchState(_, _, Some(result)) if ord.gt(simResult.score, result.score) =>
+        st.copy(gameState = nextState, bestResult = Result(simResult.playedMoves, simResult.score).some)
+      case st =>
+        // todo: Here the result from the lower level search is not better or worse than the best overall result found so far.
+        // todo: Apply the next move from `bestResult` instead of using `nextState`.
+        st.copy(gameState = nextState)
     }
 
   def nestedMonteCarlo[F[_]: Monad, Move, Position, Score](level: Int, game: Game[F, Move, Position, Score])(implicit ord: Ordering[Score]): F[Unit] = {
@@ -61,23 +61,17 @@ object Search {
       isTerminalPosition <- legalMoves match {
         case Nil => Monad[F].pure(true)
         case moves =>
-          val results = if (level <= 1) {
-            moves.traverse { move =>
+          moves
+            .traverse { move =>
               for {
                 nextState <- game.update(_.copy(gameState = currentState)) *> game.applyMove(move) *> game.gameState
-                simResult <- game.rndSimulation *> game.gameState
+                simResult <- if (level <= 1) {
+                  game.rndSimulation *> game.gameState
+                } else {
+                  nestedMonteCarlo(level - 1, game) *> game.gameState
+                }
               } yield (simResult, nextState)
             }
-
-          } else {
-            moves.traverse { move =>
-              for {
-                nextState <- game.update(_.copy(gameState = currentState)) *> game.applyMove(move) *> game.gameState
-                simResult <- nestedMonteCarlo(level - 1, game) *> game.gameState
-              } yield (simResult, nextState)
-            }
-          }
-          results
             .map(_.maxBy(_._1.score))
             .flatMap { case (simResult, nextState) => game.update(updateBestResultAndSetNextState(simResult, nextState)).as(false) }
       }
