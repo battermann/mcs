@@ -3,6 +3,26 @@ package com.example.data
 import com.example.samegame._
 
 object Games {
+  def m() = List(
+    List(1, 1, 3, 2, 0, 0, 1, 1, 2, 0, 1, 2, 0, 3, 3),
+    List(0, 0, 3, 2, 4, 3, 3, 0, 4, 4, 2, 3, 2, 3, 1),
+    List(1, 3, 0, 3, 1, 3, 3, 0, 3, 4, 1, 4, 3, 2, 1),
+    List(0, 2, 2, 1, 2, 4, 2, 4, 4, 3, 3, 0, 4, 0, 4),
+    List(1, 1, 3, 0, 0, 2, 0, 0, 2, 0, 1, 2, 3, 4, 1),
+    List(1, 4, 2, 4, 1, 3, 4, 3, 3, 3, 2, 3, 0, 4, 0),
+    List(2, 4, 1, 0, 3, 0, 3, 1, 1, 4, 0, 0, 3, 1, 4),
+    List(2, 4, 4, 1, 4, 0, 1, 2, 1, 2, 1, 2, 0, 3, 0),
+    List(1, 4, 3, 2, 3, 2, 3, 1, 1, 2, 2, 4, 0, 1, 4),
+    List(0, 0, 1, 4, 3, 1, 0, 0, 3, 2, 1, 4, 3, 2, 4),
+    List(0, 4, 3, 1, 4, 2, 4, 4, 4, 0, 0, 4, 4, 0, 1),
+    List(1, 2, 0, 3, 1, 3, 1, 1, 1, 2, 3, 3, 4, 0, 1),
+    List(4, 1, 2, 3, 4, 4, 0, 3, 0, 3, 4, 0, 1, 4, 0),
+    List(3, 3, 1, 0, 0, 0, 0, 3, 3, 4, 0, 2, 1, 0, 2),
+    List(2, 4, 3, 1, 4, 1, 3, 1, 1, 0, 1, 3, 1, 4, 3)
+  )
+
+  val sgJsg1: Game = SameGame.evaluateGameState(Board(m().map(c => Column(c.map(s => Filled(Color(s)))))), 0)
+
   val game1: Game = SameGame.evaluateGameState(Board(board15x15), 0)
 
   def board(size: Int): Game = SameGame.evaluateGameState(Board(board15x15.take(size).map(col => Column(col.cells.take(size)))), 0)

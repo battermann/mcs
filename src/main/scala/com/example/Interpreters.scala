@@ -4,10 +4,10 @@ import cats.Show
 import cats.data.State
 import cats.effect.IO
 import cats.effect.concurrent.Ref
-import com.example.samegame.{Position, SameGame}
+import com.example.samegame._
 import cats.implicits._
 
-object Instances {
+object Interpreters {
   def withState(): Game[State[SearchState[samegame.Position, samegame.Game, Int], ?], samegame.Position, samegame.Game, Int] =
     new Game[State[SearchState[samegame.Position, samegame.Game, Int], ?], samegame.Position, samegame.Game, Int] {
 
@@ -47,10 +47,13 @@ object Instances {
       def gameState: State[SearchState[Position, samegame.Game, Int], GameState[Position, samegame.Game, Int]] =
         State.inspect(_.gameState)
 
-      def bestResult: State[SearchState[Position, samegame.Game, Int], Option[Result[Position, Int]]] =
-        State.inspect(_.bestResult)
+      def bestSequence: State[SearchState[Position, samegame.Game, Int], Option[Result[Position, Int]]] =
+        State.inspect(_.bestSequence)
 
       def update(f: S => S): State[S, Unit] = State.modify[S](f)
+
+      def log(msg: String): State[S, Unit] =
+        State.pure[S, Unit](())
     }
 
   def withIORef(initial: SearchState[samegame.Position, samegame.Game, Int]): IO[Game[IO, samegame.Position, samegame.Game, Int]] =
@@ -90,17 +93,41 @@ object Instances {
         def gameState: IO[GameState[Position, samegame.Game, Int]] =
           ref.get.map(_.gameState)
 
-        override def bestResult: IO[Option[Result[Position, Int]]] =
-          ref.get.map(_.bestResult)
+        override def bestSequence: IO[Option[Result[Position, Int]]] =
+          ref.get.map(_.bestSequence)
 
         def update(f: S => S): IO[Unit] = ref.update(f)
+
+        def log(msg: String): IO[Unit] = IO(println(msg))
       }
 
-  val showResult: Show[Option[Result[samegame.Position, Int]]] = (t: Option[Result[Position, Int]]) =>
-    t match {
-      case Some(r) => s"""${r.moves.reverse.map(p => s"(${p.col}, ${p.row})").mkString("[", ", ", "]")}
-                         |Score: ${r.score}
-                         |""".stripMargin
-      case None    => "no result found"
+  implicit val showCell: Show[CellState] = (cellState: CellState) =>
+    cellState match {
+      case Empty         => "-"
+      case Filled(Green) => "0"
+      case Filled(Blue)  => "1"
+      case Filled(Red)   => "2"
+      case Filled(Brown) => "3"
+      case Filled(Gray)  => "4"
   }
+
+  implicit val showBoard: Show[Board] = (board: Board) =>
+    board.columns.map(col => col.cells.map(c => show"$c").reverse).transpose.map(_.mkString("[", ",", "]")).mkString("\n")
+
+  implicit val showGame: Show[samegame.Game] = (game: samegame.Game) =>
+    game match {
+      case InProgress(board, score) => show"$board\n\nScore: $score (game in progress)"
+      case Finished(board, score)   => show"$board\n\nScore: $score (game finished)"
+  }
+
+  val showResult: Show[GameState[samegame.Position, samegame.Game, Int]] = (t: GameState[samegame.Position, samegame.Game, Int]) => show"""
+       |${t.position}
+       |
+       |Moves: ${t.playedMoves.reverse.map(p => s"(${p.col}, ${p.row})").mkString("[", ", ", "]")}
+       |""".stripMargin
+
+  val showResultAsQueryParams: Show[GameState[samegame.Position, samegame.Game, Int]] = (t: GameState[samegame.Position, samegame.Game, Int]) =>
+    show"""${t.playedMoves.reverse.map(p => s"(${p.col}, ${p.row})").mkString("[", ", ", "]")}
+       |Score: ${t.score}
+       |""".stripMargin
 }

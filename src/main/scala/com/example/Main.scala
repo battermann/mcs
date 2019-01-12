@@ -20,7 +20,7 @@ final case class Result[Move, Score](
 final case class SearchState[Move, Position, Score](
     seed: Seed,
     gameState: GameState[Move, Position, Score],
-    bestResult: Option[Result[Move, Score]]
+    bestSequence: Option[Result[Move, Score]]
 )
 
 trait Game[F[_], Move, Position, Score] {
@@ -29,11 +29,12 @@ trait Game[F[_], Move, Position, Score] {
   def applyMove(move: Move): F[Unit]
   def update(f: S => S): F[Unit]
   def rndSimulation: F[Unit]
+  def log(msg: String): F[Unit]
 
   def legalMoves: F[List[Move]]
   def rndInt(bound: Int): F[Int]
   def gameState: F[GameState[Move, Position, Score]]
-  def bestResult: F[Option[Result[Move, Score]]]
+  def bestSequence: F[Option[Result[Move, Score]]]
 }
 
 object Game {
@@ -41,30 +42,41 @@ object Game {
 }
 
 object Search {
-  def updateBestResultAndSetNextState[Move, Position, Score](simResult: GameState[Move, Position, Score], nextState: GameState[Move, Position, Score])(
-      searchState: SearchState[Move, Position, Score])(implicit ord: Ordering[Score]): SearchState[Move, Position, Score] =
-    searchState match {
-      case st @ SearchState(_, _, None) =>
-        st.copy(gameState = nextState, bestResult = Result(simResult.playedMoves, simResult.score).some)
-      case st @ SearchState(_, _, Some(result)) if ord.gt(simResult.score, result.score) =>
-        st.copy(gameState = nextState, bestResult = Result(simResult.playedMoves, simResult.score).some)
-      case st =>
-        // todo: Here the result from the lower level search is not better or worse than the best overall result found so far.
-        // todo: Apply the next move from `bestResult` instead of using `nextState`.
-        st.copy(gameState = nextState)
-    }
+  def updateSearchState[F[_]: Monad, Move, Position, Score](
+      game: Game[F, Move, Position, Score],
+      currentState: GameState[Move, Position, Score],
+      nextState: GameState[Move, Position, Score],
+      currentBestSequence: Option[Result[Move, Score]],
+      simResult: GameState[Move, Position, Score])(implicit ord: Ordering[Score], showResult: Show[GameState[Move, Position, Score]]): F[Unit] =
+    for {
+      _ <- currentBestSequence match {
+        case None =>
+          game.update(_.copy(gameState = nextState, bestSequence = Result(simResult.playedMoves, simResult.score).some))
+        case Some(bestSequence) if ord.gt(simResult.score, bestSequence.score) =>
+          game.log(show"$simResult")
+          game.update(_.copy(gameState = nextState, bestSequence = Result(simResult.playedMoves, simResult.score).some))
+        case Some(bestSequence) =>
+          // If none of the moves improve on the best sequence, the move of the best sequence is played
+          val i        = bestSequence.moves.length - 1 - currentState.playedMoves.length
+          val nextMove = bestSequence.moves(i)
+          game.update(_.copy(gameState = currentState, bestSequence = bestSequence.some)) *> game.applyMove(nextMove)
+      }
+    } yield ()
 
-  def nestedMonteCarlo[F[_]: Monad, Move, Position, Score](level: Int, game: Game[F, Move, Position, Score])(implicit ord: Ordering[Score]): F[Unit] = {
+  def nestedMonteCarlo[F[_]: Monad, Move, Position, Score](level: Int, game: Game[F, Move, Position, Score])(
+      implicit ord: Ordering[Score],
+      showResult: Show[GameState[Move, Position, Score]]): F[Unit] = {
     val playMoveWithBestSimulationResult = for {
-      legalMoves   <- game.legalMoves
-      currentState <- game.gameState
+      legalMoves        <- game.legalMoves
+      currentState      <- game.gameState
+      currentBestSequence <- game.bestSequence
       isTerminalPosition <- legalMoves match {
         case Nil => Monad[F].pure(true)
         case moves =>
           moves
             .traverse { move =>
               for {
-                nextState <- game.update(_.copy(gameState = currentState)) *> game.applyMove(move) *> game.gameState
+                nextState <- game.update(_.copy(gameState = currentState, bestSequence = None)) *> game.applyMove(move) *> game.gameState
                 simResult <- if (level <= 1) {
                   game.rndSimulation *> game.gameState
                 } else {
@@ -73,7 +85,7 @@ object Search {
               } yield (simResult, nextState)
             }
             .map(_.maxBy(_._1.score))
-            .flatMap { case (simResult, nextState) => game.update(updateBestResultAndSetNextState(simResult, nextState)).as(false) }
+            .flatMap { case (bestSimResult, nextState) => updateSearchState(game, currentState, nextState, currentBestSequence, bestSimResult).as(false) }
       }
     } yield isTerminalPosition
 
@@ -84,25 +96,25 @@ object Search {
 object Main extends IOApp {
   private val game  = data.Games.board(7)
   private val score = SameGame.score(game)
-  private val s     = SearchState(Seed(50L), GameState(List.empty[samegame.Position], score, game), None)
+  private val s     = SearchState(Seed(234924L), GameState(List.empty[samegame.Position], score, game), None)
 
-  private implicit val showResult: Show[Option[Result[samegame.Position, Int]]] = Instances.showResult
+  private implicit val showResult: Show[GameState[samegame.Position, samegame.Game, Int]] = Interpreters.showResult
 
   private def putStrLn[T: Show](t: T): IO[Unit] = IO(println(show"$t"))
 
   val resultState: IO[Unit] = {
-    val instance = Instances.withState()
-    val result   = Search.nestedMonteCarlo(3, instance).runS(s).value.bestResult
-    putStrLn(result)
+    val interpreter = Interpreters.withState()
+    val result      = Search.nestedMonteCarlo(3, interpreter).runS(s).value
+    putStrLn(result.gameState)
   }
 
   val resultIORef: IO[Unit] = for {
-    instance <- Instances.withIORef(s)
-    result   <- Search.nestedMonteCarlo(2, instance) *> instance.bestResult
-    _        <- putStrLn(result)
+    interpreter <- Interpreters.withIORef(s)
+    result      <- Search.nestedMonteCarlo(2, interpreter) *> interpreter.gameState
+    _           <- putStrLn(result)
   } yield ()
 
   def run(args: List[String]): IO[ExitCode] =
-    //resultIORef.as(ExitCode.Success)
+    // resultIORef.as(ExitCode.Success)
     resultState.as(ExitCode.Success)
 }
