@@ -1,18 +1,18 @@
 package com.example
 
 import cats.Show
-import cats.data.State
+import cats.data.StateT
 import cats.effect.IO
 import cats.effect.concurrent.Ref
-import com.example.samegame._
 import cats.implicits._
+import com.example.samegame._
 
 object Interpreters {
-  def withState(): Game[State[SearchState[samegame.Position, samegame.Game, Int], ?], samegame.Position, samegame.Game, Int] =
-    new Game[State[SearchState[samegame.Position, samegame.Game, Int], ?], samegame.Position, samegame.Game, Int] {
+  def withState(): Game[StateT[IO, SearchState[samegame.Position, samegame.Game, Int], ?], samegame.Position, samegame.Game, Int] =
+    new Game[StateT[IO, SearchState[samegame.Position, samegame.Game, Int], ?], samegame.Position, samegame.Game, Int] {
 
-      def applyMove(move: samegame.Position): State[S, Unit] =
-        State.modify[S] { searchState =>
+      def applyMove(move: samegame.Position): StateT[IO, S, Unit] =
+        StateT.modify[IO, S] { searchState =>
           val nextPosition = SameGame.applyMove(move, searchState.gameState.position)
           val gameState = searchState.gameState.copy(
             position = nextPosition,
@@ -22,21 +22,21 @@ object Interpreters {
           searchState.copy(gameState = gameState)
         }
 
-      def legalMoves: State[S, List[samegame.Position]] =
-        State.inspect[S, List[samegame.Position]] { searchState =>
+      def legalMoves: StateT[IO, S, List[samegame.Position]] =
+        StateT.inspect[IO, S, List[samegame.Position]] { searchState =>
           SameGame.legalMoves(searchState.gameState.position)
         }
 
-      def rndInt(bound: Int): State[S, Int] = State[S, Int] { searchState =>
+      def rndInt(bound: Int): StateT[IO, S, Int] = StateT[IO, S, Int] { searchState =>
         val (nextSeed, i) = searchState.seed.nextInt(bound)
-        (searchState.copy(seed = nextSeed), i)
+        IO { (searchState.copy(seed = nextSeed), i) }
       }
 
-      def rndSimulation: State[S, Unit] = {
+      def simulation: StateT[IO, S, Unit] = {
         val playRndLegalMove = for {
           moves <- legalMoves
           isTerminalPosition <- moves match {
-            case Nil => State.pure[S, Boolean](true)
+            case Nil => StateT.pure[IO, S, Boolean](true)
             case ms  => rndInt(ms.length).flatMap(i => applyMove(ms(i))).as(false)
           }
         } yield isTerminalPosition
@@ -44,16 +44,19 @@ object Interpreters {
         playRndLegalMove.iterateUntil(isTerminalPosition => isTerminalPosition).void
       }
 
-      def gameState: State[SearchState[Position, samegame.Game, Int], GameState[Position, samegame.Game, Int]] =
-        State.inspect(_.gameState)
+      def gameState: StateT[IO, SearchState[Position, samegame.Game, Int], GameState[Position, samegame.Game, Int]] =
+        StateT.inspect(_.gameState)
 
-      def bestSequence: State[SearchState[Position, samegame.Game, Int], Option[Result[Position, Int]]] =
-        State.inspect(_.bestSequence)
+      def bestSequence: StateT[IO, SearchState[Position, samegame.Game, Int], Option[Result[Position, Int]]] =
+        StateT.inspect(_.bestSequence)
 
-      def update(f: S => S): State[S, Unit] = State.modify[S](f)
+      def bestTotal: StateT[IO, SearchState[Position, samegame.Game, Int], Option[Result[Position, Int]]] =
+        StateT.inspect(_.bestTotal)
 
-      def log(msg: String): State[S, Unit] =
-        State.pure[S, Unit](())
+      def update(f: S => S): StateT[IO, S, Unit] = StateT.modify[IO, S](f)
+
+      def log(msg: String): StateT[IO, S, Unit] =
+        StateT[IO, S, Unit](s => IO(println(msg)).map((s, _)))
     }
 
   def withIORef(initial: SearchState[samegame.Position, samegame.Game, Int]): IO[Game[IO, samegame.Position, samegame.Game, Int]] =
@@ -78,7 +81,7 @@ object Interpreters {
         def rndInt(bound: Int): IO[Int] =
           IO(scala.util.Random.nextInt(bound))
 
-        def rndSimulation: IO[Unit] = {
+        def simulation: IO[Unit] = {
           val playRndLegalMove = for {
             moves <- legalMoves
             isTerminalPosition <- moves match {
@@ -93,8 +96,11 @@ object Interpreters {
         def gameState: IO[GameState[Position, samegame.Game, Int]] =
           ref.get.map(_.gameState)
 
-        override def bestSequence: IO[Option[Result[Position, Int]]] =
+        def bestSequence: IO[Option[Result[Position, Int]]] =
           ref.get.map(_.bestSequence)
+
+        def bestTotal: IO[Option[Result[Position, Int]]] =
+          ref.get.map(_.bestTotal)
 
         def update(f: S => S): IO[Unit] = ref.update(f)
 

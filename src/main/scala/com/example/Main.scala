@@ -20,7 +20,8 @@ final case class Result[Move, Score](
 final case class SearchState[Move, Position, Score](
     seed: Seed,
     gameState: GameState[Move, Position, Score],
-    bestSequence: Option[Result[Move, Score]]
+    bestSequence: Option[Result[Move, Score]],
+    bestTotal: Option[Result[Move, Score]]
 )
 
 trait Game[F[_], Move, Position, Score] {
@@ -28,13 +29,14 @@ trait Game[F[_], Move, Position, Score] {
 
   def applyMove(move: Move): F[Unit]
   def update(f: S => S): F[Unit]
-  def rndSimulation: F[Unit]
+  def simulation: F[Unit]
   def log(msg: String): F[Unit]
 
   def legalMoves: F[List[Move]]
   def rndInt(bound: Int): F[Int]
   def gameState: F[GameState[Move, Position, Score]]
   def bestSequence: F[Option[Result[Move, Score]]]
+  def bestTotal: F[Option[Result[Move, Score]]]
 }
 
 object Game {
@@ -53,7 +55,6 @@ object Search {
         case None =>
           game.update(_.copy(gameState = nextState, bestSequence = Result(simResult.playedMoves, simResult.score).some))
         case Some(bestSequence) if ord.gt(simResult.score, bestSequence.score) =>
-          game.log(show"$simResult")
           game.update(_.copy(gameState = nextState, bestSequence = Result(simResult.playedMoves, simResult.score).some))
         case Some(bestSequence) =>
           // If none of the moves improve on the best sequence, the move of the best sequence is played
@@ -61,14 +62,25 @@ object Search {
           val nextMove = bestSequence.moves(i)
           game.update(_.copy(gameState = currentState, bestSequence = bestSequence.some)) *> game.applyMove(nextMove)
       }
+      bestTotal <- game.bestTotal
+      _ <- bestTotal match {
+        case None =>
+          game.update(_.copy(bestTotal = Result(simResult.playedMoves, simResult.score).some)) *>
+            game.log(show"""Improved sequence found:\n$simResult\n""")
+        case Some(best) if ord.gt(simResult.score, best.score) =>
+          game.update(_.copy(bestTotal = Result(simResult.playedMoves, simResult.score).some)) *>
+            game.log(show"""Improved sequence found:\n$simResult\n""")
+        case _ =>
+          Monad[F].pure(())
+      }
     } yield ()
 
   def nestedMonteCarlo[F[_]: Monad, Move, Position, Score](level: Int, game: Game[F, Move, Position, Score])(
       implicit ord: Ordering[Score],
       showResult: Show[GameState[Move, Position, Score]]): F[Unit] = {
     val playMoveWithBestSimulationResult = for {
-      legalMoves        <- game.legalMoves
-      currentState      <- game.gameState
+      legalMoves          <- game.legalMoves
+      currentState        <- game.gameState
       currentBestSequence <- game.bestSequence
       isTerminalPosition <- legalMoves match {
         case Nil => Monad[F].pure(true)
@@ -78,14 +90,17 @@ object Search {
               for {
                 nextState <- game.update(_.copy(gameState = currentState, bestSequence = None)) *> game.applyMove(move) *> game.gameState
                 simResult <- if (level <= 1) {
-                  game.rndSimulation *> game.gameState
+                  game.simulation *> game.gameState
                 } else {
                   nestedMonteCarlo(level - 1, game) *> game.gameState
                 }
               } yield (simResult, nextState)
             }
             .map(_.maxBy(_._1.score))
-            .flatMap { case (bestSimResult, nextState) => updateSearchState(game, currentState, nextState, currentBestSequence, bestSimResult).as(false) }
+            .flatMap {
+              case (bestSimResult, nextState) =>
+                updateSearchState(game, currentState, nextState, currentBestSequence, bestSimResult).as(false)
+            }
       }
     } yield isTerminalPosition
 
@@ -96,7 +111,7 @@ object Search {
 object Main extends IOApp {
   private val game  = data.Games.board(7)
   private val score = SameGame.score(game)
-  private val s     = SearchState(Seed(234924L), GameState(List.empty[samegame.Position], score, game), None)
+  private val s     = SearchState(Seed(234924L), GameState(List.empty[samegame.Position], score, game), None, None)
 
   private implicit val showResult: Show[GameState[samegame.Position, samegame.Game, Int]] = Interpreters.showResult
 
@@ -104,8 +119,10 @@ object Main extends IOApp {
 
   val resultState: IO[Unit] = {
     val interpreter = Interpreters.withState()
-    val result      = Search.nestedMonteCarlo(3, interpreter).runS(s).value
-    putStrLn(result.gameState)
+    for {
+      result <- Search.nestedMonteCarlo(3, interpreter).runS(s)
+      _      <- putStrLn(result.gameState)
+    } yield ()
   }
 
   val resultIORef: IO[Unit] = for {
