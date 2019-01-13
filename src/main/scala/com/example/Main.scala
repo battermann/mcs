@@ -20,10 +20,10 @@ object Main extends IOApp {
     implicit val logger: Logger[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?]] =
       Interpreters.loggerState
 
-    val interpreter  = Interpreters.withState()
+    val interpreter  = Interpreters.gameState()
     val initialState = SearchState(Seed(234924L), gameState, None, None)
     for {
-      result <- Search.nestedMonteCarlo(3, interpreter).runS(initialState)
+      result <- Programs.nestedMonteCarlo(3, interpreter).runS(initialState)
       _      <- putStrLn(result.gameState)
     } yield ()
   }
@@ -32,8 +32,8 @@ object Main extends IOApp {
     val initialState                = SearchState((), gameState, None, None)
     implicit val logger: Logger[IO] = Interpreters.loggerIORef
     for {
-      interpreter <- Interpreters.withIORef(initialState)
-      result      <- Search.nestedMonteCarlo(2, interpreter) *> interpreter.gameState
+      interpreter <- Interpreters.gameIORef(initialState)
+      result      <- Programs.nestedMonteCarlo(2, interpreter) *> interpreter.gameState
       _           <- putStrLn(result)
     } yield ()
   }

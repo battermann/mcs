@@ -9,7 +9,7 @@ import com.example.Prng.Seed
 import com.example.samegame._
 
 object Interpreters {
-  def withState(): Game[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?], samegame.Position, samegame.Game, Int, Seed] =
+  def gameState(): Game[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?], samegame.Position, samegame.Game, Int, Seed] =
     new Game[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?], samegame.Position, samegame.Game, Int, Seed] {
 
       def applyMove(move: samegame.Position): StateT[IO, S, Unit] =
@@ -57,7 +57,7 @@ object Interpreters {
       def update(f: S => S): StateT[IO, S, Unit] = StateT.modify[IO, S](f)
     }
 
-  def withIORef(initial: SearchState[samegame.Position, samegame.Game, Int, Unit]): IO[Game[IO, samegame.Position, samegame.Game, Int, Unit]] =
+  def gameIORef(initial: SearchState[samegame.Position, samegame.Game, Int, Unit]): IO[Game[IO, samegame.Position, samegame.Game, Int, Unit]] =
     for {
       ref <- Ref.of[IO, SearchState[samegame.Position, samegame.Game, Int, Unit]](initial)
     } yield

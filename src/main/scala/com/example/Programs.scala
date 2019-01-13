@@ -3,8 +3,8 @@ package com.example
 import cats.{Monad, Show}
 import cats.implicits._
 
-object Search {
-  def updateSearchState[F[_]: Monad: Logger, Move, Position, Score, Seed](
+object Programs {
+  private def updateSearchState[F[_]: Monad: Logger, Move, Position, Score, Seed](
       game: Game[F, Move, Position, Score, Seed],
       currentState: GameState[Move, Position, Score],
       nextState: GameState[Move, Position, Score],
