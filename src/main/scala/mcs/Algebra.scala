@@ -1,5 +1,7 @@
 package mcs
 
+import cats.Show
+
 final case class GameState[Move, Position, Score](
     playedMoves: List[Move],
     score: Score,
@@ -40,7 +42,7 @@ object Game {
 }
 
 trait Logger[F[_]] {
-  def log(msg: String): F[Unit]
+  def log[T: Show](t: T): F[Unit]
 }
 
 object Logger {

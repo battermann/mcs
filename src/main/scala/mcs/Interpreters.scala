@@ -103,10 +103,15 @@ object Interpreters {
         def update(f: S => S): IO[Unit] = ref.update(f)
       }
 
-  val loggerState: Logger[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?]] = (msg: String) =>
-    StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], Unit](s => IO(println(msg)).map((s, _)))
+  val loggerState: Logger[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?]] =
+    new Logger[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?]] {
+      def log[T: Show](t: T): StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], Unit] =
+        StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], Unit](s => IO(println(show"$t")).map((s, _)))
+    }
 
-  val loggerIORef: Logger[IO] = (msg: String) => IO(println(msg))
+  val loggerIORef: Logger[IO] = new Logger[IO] {
+    def log[T: Show](t: T): IO[Unit] = IO(println(show"$t"))
+  }
 
   implicit val showCell: Show[CellState] = (cellState: CellState) =>
     cellState match {
