@@ -55,9 +55,6 @@ object Interpreters {
         StateT.inspect(_.bestTotal)
 
       def update(f: S => S): StateT[IO, S, Unit] = StateT.modify[IO, S](f)
-
-      def log(msg: String): StateT[IO, S, Unit] =
-        StateT[IO, S, Unit](s => IO(println(msg)).map((s, _)))
     }
 
   def withIORef(initial: SearchState[samegame.Position, samegame.Game, Int, Unit]): IO[Game[IO, samegame.Position, samegame.Game, Int, Unit]] =
@@ -104,9 +101,12 @@ object Interpreters {
           ref.get.map(_.bestTotal)
 
         def update(f: S => S): IO[Unit] = ref.update(f)
-
-        def log(msg: String): IO[Unit] = IO(println(msg))
       }
+
+  val loggerState: Logger[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?]] = (msg: String) =>
+    StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], Unit](s => IO(println(msg)).map((s, _)))
+
+  val loggerIORef: Logger[IO] = (msg: String) => IO(println(msg))
 
   implicit val showCell: Show[CellState] = (cellState: CellState) =>
     cellState match {
@@ -139,7 +139,7 @@ object Interpreters {
        |""".stripMargin
 
   implicit val showResultAsJsFunctionCalls: Show[GameState[samegame.Position, samegame.Game, Int]] = (t: GameState[samegame.Position, samegame.Game, Int]) =>
-    show"""${t.playedMoves.reverse.map(p => s"sg_remove(${p.col},${14-p.row})").mkString(";")}
+    show"""${t.playedMoves.reverse.map(p => s"sg_remove(${p.col},${14 - p.row})").mkString(";")}
           |Score: ${t.score}
           |""".stripMargin
 }

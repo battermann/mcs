@@ -1,6 +1,7 @@
 package com.example
 
 import cats.Show
+import cats.data.StateT
 import cats.effect.{ExitCode, IO, IOApp}
 import cats.implicits._
 import com.example.Prng.Seed
@@ -16,6 +17,9 @@ object Main extends IOApp {
   private def putStrLn[T: Show](t: T): IO[Unit] = IO(println(show"$t"))
 
   val resultState: IO[Unit] = {
+    implicit val logger: Logger[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?]] =
+      Interpreters.loggerState
+
     val interpreter  = Interpreters.withState()
     val initialState = SearchState(Seed(234924L), gameState, None, None)
     for {
@@ -25,7 +29,8 @@ object Main extends IOApp {
   }
 
   val resultIORef: IO[Unit] = {
-    val initialState = SearchState((), gameState, None, None)
+    val initialState                = SearchState((), gameState, None, None)
+    implicit val logger: Logger[IO] = Interpreters.loggerIORef
     for {
       interpreter <- Interpreters.withIORef(initialState)
       result      <- Search.nestedMonteCarlo(2, interpreter) *> interpreter.gameState
