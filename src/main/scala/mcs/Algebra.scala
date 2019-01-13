@@ -15,6 +15,9 @@ final case class SearchState[Move, Position, Score, Seed](
     seed: Seed,
     gameState: GameState[Move, Position, Score],
     bestSequence: Option[Result[Move, Score]],
+    // `bestTotal` is not driving the search.
+    // It just tracks the best overall result found so that it can be logged e.g.
+    // When the search terminates `bestTotal` and `gameState` should represent the same sequence of moves.
     bestTotal: Option[Result[Move, Score]]
 )
 
