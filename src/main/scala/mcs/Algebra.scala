@@ -1,4 +1,4 @@
-package com.example
+package mcs
 
 final case class GameState[Move, Position, Score](
     playedMoves: List[Move],

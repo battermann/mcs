@@ -1,4 +1,4 @@
-package com.example.samegame
+package mcs.samegame
 
 final case class Position(col: Int, row: Int)
 

@@ -1,4 +1,4 @@
-package com.example
+package mcs
 
 import cats.{Monad, Show}
 import cats.implicits._

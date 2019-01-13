@@ -1,6 +1,6 @@
-package com.example.data
+package mcs.data
 
-import com.example.samegame._
+import mcs.samegame._
 
 object Games {
   private def jsGames01Raw(): List[List[Int]] = List(

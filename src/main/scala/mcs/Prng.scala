@@ -1,4 +1,4 @@
-package com.example
+package mcs
 
 import cats.data.State
 

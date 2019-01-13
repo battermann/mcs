@@ -1,4 +1,4 @@
-package com.example.samegame
+package mcs.samegame
 
 import Column.CellMapper
 import Board.ColumnMapper

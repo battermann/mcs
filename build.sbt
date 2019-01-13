@@ -5,8 +5,7 @@ version := "1.0"
 scalaVersion := "2.12.7"
 
 libraryDependencies ++= Seq(
-  "org.typelevel" %% "cats-effect" % "1.1.0",
-  "org.typelevel" %% "cats-mtl-core" % "0.4.0"
+  "org.typelevel" %% "cats-effect" % "1.1.0"
 )
 
 resolvers += Resolver.sonatypeRepo("releases")

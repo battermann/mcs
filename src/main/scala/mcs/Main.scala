@@ -1,11 +1,11 @@
-package com.example
+package mcs
 
 import cats.Show
 import cats.data.StateT
 import cats.effect.{ExitCode, IO, IOApp}
 import cats.implicits._
-import com.example.Prng.Seed
-import com.example.samegame.SameGame
+import mcs.Prng.Seed
+import mcs.samegame.SameGame
 
 object Main extends IOApp {
   private val position  = data.Games.board(7)

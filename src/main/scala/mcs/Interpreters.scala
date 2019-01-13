@@ -1,12 +1,12 @@
-package com.example
+package mcs
 
 import cats.Show
 import cats.data.StateT
 import cats.effect.IO
 import cats.effect.concurrent.Ref
 import cats.implicits._
-import com.example.Prng.Seed
-import com.example.samegame._
+import mcs.Prng.Seed
+import mcs.samegame._
 
 object Interpreters {
   def gameState(): Game[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?], samegame.Position, samegame.Game, Int, Seed] =
