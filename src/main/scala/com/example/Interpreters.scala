@@ -5,11 +5,12 @@ import cats.data.StateT
 import cats.effect.IO
 import cats.effect.concurrent.Ref
 import cats.implicits._
+import com.example.Prng.Seed
 import com.example.samegame._
 
 object Interpreters {
-  def withState(): Game[StateT[IO, SearchState[samegame.Position, samegame.Game, Int], ?], samegame.Position, samegame.Game, Int] =
-    new Game[StateT[IO, SearchState[samegame.Position, samegame.Game, Int], ?], samegame.Position, samegame.Game, Int] {
+  def withState(): Game[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?], samegame.Position, samegame.Game, Int, Seed] =
+    new Game[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?], samegame.Position, samegame.Game, Int, Seed] {
 
       def applyMove(move: samegame.Position): StateT[IO, S, Unit] =
         StateT.modify[IO, S] { searchState =>
@@ -44,13 +45,13 @@ object Interpreters {
         playRndLegalMove.iterateUntil(isTerminalPosition => isTerminalPosition).void
       }
 
-      def gameState: StateT[IO, SearchState[Position, samegame.Game, Int], GameState[Position, samegame.Game, Int]] =
+      def gameState: StateT[IO, S, GameState[Position, samegame.Game, Int]] =
         StateT.inspect(_.gameState)
 
-      def bestSequence: StateT[IO, SearchState[Position, samegame.Game, Int], Option[Result[Position, Int]]] =
+      def bestSequence: StateT[IO, S, Option[Result[Position, Int]]] =
         StateT.inspect(_.bestSequence)
 
-      def bestTotal: StateT[IO, SearchState[Position, samegame.Game, Int], Option[Result[Position, Int]]] =
+      def bestTotal: StateT[IO, S, Option[Result[Position, Int]]] =
         StateT.inspect(_.bestTotal)
 
       def update(f: S => S): StateT[IO, S, Unit] = StateT.modify[IO, S](f)
@@ -59,11 +60,11 @@ object Interpreters {
         StateT[IO, S, Unit](s => IO(println(msg)).map((s, _)))
     }
 
-  def withIORef(initial: SearchState[samegame.Position, samegame.Game, Int]): IO[Game[IO, samegame.Position, samegame.Game, Int]] =
+  def withIORef(initial: SearchState[samegame.Position, samegame.Game, Int, Unit]): IO[Game[IO, samegame.Position, samegame.Game, Int, Unit]] =
     for {
-      ref <- Ref.of[IO, SearchState[samegame.Position, samegame.Game, Int]](initial)
+      ref <- Ref.of[IO, SearchState[samegame.Position, samegame.Game, Int, Unit]](initial)
     } yield
-      new Game[IO, samegame.Position, samegame.Game, Int] {
+      new Game[IO, samegame.Position, samegame.Game, Int, Unit] {
         def applyMove(move: samegame.Position): IO[Unit] =
           ref.update { searchState =>
             val nextPosition = SameGame.applyMove(move, searchState.gameState.position)
