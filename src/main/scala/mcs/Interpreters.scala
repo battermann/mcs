@@ -132,18 +132,18 @@ object Interpreters {
       case Finished(board, score)   => show"$board\n\nScore: $score (game finished)"
   }
 
-  implicit val showResult: Show[GameState[samegame.Position, samegame.Game, Int]] = (t: GameState[samegame.Position, samegame.Game, Int]) => show"""
+  implicit val showGameState: Show[GameState[samegame.Position, samegame.Game, Int]] = (t: GameState[samegame.Position, samegame.Game, Int]) => show"""
        |${t.position}
        |
        |Moves: ${t.playedMoves.reverse.map(p => s"(${p.col}, ${p.row})").mkString("[", ", ", "]")}
        |""".stripMargin
 
-  implicit val showResultAsQueryParams: Show[GameState[samegame.Position, samegame.Game, Int]] = (t: GameState[samegame.Position, samegame.Game, Int]) =>
+  implicit val showGameStateAsQueryParams: Show[GameState[samegame.Position, samegame.Game, Int]] = (t: GameState[samegame.Position, samegame.Game, Int]) =>
     show"""${t.playedMoves.reverse.map(p => s"(${p.col}, ${p.row})").mkString("[", ", ", "]")}
        |Score: ${t.score}
        |""".stripMargin
 
-  implicit val showResultAsJsFunctionCalls: Show[GameState[samegame.Position, samegame.Game, Int]] = (t: GameState[samegame.Position, samegame.Game, Int]) =>
+  implicit val showGameStateAsJsFunctionCalls: Show[GameState[samegame.Position, samegame.Game, Int]] = (t: GameState[samegame.Position, samegame.Game, Int]) =>
     show"""${t.playedMoves.reverse.map(p => s"sg_remove(${p.col},${14 - p.row})").mkString(";")}
           |Score: ${t.score}
           |""".stripMargin
