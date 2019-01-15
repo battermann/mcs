@@ -8,7 +8,7 @@ object Programs {
     (xs, ys) match {
       case (Nil, _)             => true
       case (_, Nil)             => false
-      case (xh :: xt, yh :: yt) => (xh == yh) && isPrefixOf(xt, yt)
+      case (xh :: xt, yh :: yt) => (xh === yh) && isPrefixOf(xt, yt)
     }
   private def chooseNextMove[F[_]: Monad: Logger, Move, Position, Score, Seed](
       game: Game[F, Move, Position, Score, Seed],
