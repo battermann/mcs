@@ -18,20 +18,17 @@ object Programs {
           game.update(_.copy(gameState = nextState, bestSequence = Result(simResult.playedMoves, simResult.score).some))
         case Some(currentBest) =>
           // If none of the moves improve on the best sequence, the move of the best sequence is played
-          val i        = currentBest.moves.length - 1 - currentState.playedMoves.length
-          val nextMove = currentBest.moves(i)
+          val nextMove = currentBest.moves(currentBest.moves.length - 1 - currentState.playedMoves.length)
           game.update(_.copy(gameState = currentState, bestSequence = currentBest.some)) *> game.applyMove(nextMove)
       }
       bestTotal <- game.bestTotal
       _ <- bestTotal match {
         case None =>
           val betterSequence = Result(simResult.playedMoves, simResult.score)
-          game.update(_.copy(bestTotal = betterSequence.some)) *>
-            Logger[F].log(betterSequence)
+          game.update(_.copy(bestTotal = betterSequence.some)) *> Logger[F].log(betterSequence)
         case Some(best) if ord.gt(simResult.score, best.score) =>
           val betterSequence = Result(simResult.playedMoves, simResult.score)
-          game.update(_.copy(bestTotal = betterSequence.some)) *>
-            Logger[F].log(betterSequence)
+          game.update(_.copy(bestTotal = betterSequence.some)) *> Logger[F].log(betterSequence)
         case _ =>
           Monad[F].pure(())
       }
@@ -53,11 +50,7 @@ object Programs {
             .traverse { move =>
               for {
                 nextState <- game.update(_.copy(gameState = currentState, bestSequence = None)) *> game.applyMove(move) *> game.gameState
-                simResult <- if (level <= 1) {
-                  game.simulation *> game.gameState
-                } else {
-                  nested(levels, level - 1, game) *> game.gameState
-                }
+                simResult <- if (level <= 1) { game.simulation *> game.gameState } else { nested(levels, level - 1, game) *> game.gameState }
               } yield (simResult, nextState)
             }
             .map(_.maxBy(_._1.score))
