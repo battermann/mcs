@@ -1,9 +1,15 @@
 package mcs
 
-import cats.{Monad, Show}
 import cats.implicits._
+import cats.{Eq, Monad, Show}
 
 object Programs {
+  private def isPrefixOf[A: Eq](xs: List[A], ys: List[A]): Boolean =
+    (xs, ys) match {
+      case (Nil, _)             => true
+      case (_, Nil)             => false
+      case (xh :: xt, yh :: yt) => (xh == yh) && isPrefixOf(xt, yt)
+    }
   private def chooseNextMove[F[_]: Monad: Logger, Move, Position, Score, Seed](
       game: Game[F, Move, Position, Score, Seed],
       currentState: GameState[Move, Position, Score],
@@ -34,7 +40,7 @@ object Programs {
       }
     } yield ()
 
-  private def nested[F[_]: Monad: Logger, Move, Position, Score, Seed](levels: Int, level: Int, game: Game[F, Move, Position, Score, Seed])(
+  private def nested[F[_]: Monad: Logger, Move: Eq, Position, Score, Seed](levels: Int, level: Int, game: Game[F, Move, Position, Score, Seed])(
       implicit ord: Ordering[Score],
       showGameState: Show[GameState[Move, Position, Score]],
       showResult: Show[Result[Move, Score]]): F[Unit] = {
@@ -48,8 +54,11 @@ object Programs {
         case moves =>
           moves
             .traverse { move =>
+              val bestSeqOnCurrentPath = currentBestSequence
+                .filter(cbs => isPrefixOf(cbs.moves, move :: currentState.playedMoves))
               for {
-                nextState <- game.update(_.copy(gameState = currentState, bestSequence = None)) *> game.applyMove(move) *> game.gameState
+                nextState <- game.update(_.copy(gameState = currentState, bestSequence = bestSeqOnCurrentPath)) *>
+                  game.applyMove(move) *> game.gameState
                 simResult <- if (level <= 1) { game.simulation *> game.gameState } else { nested(levels, level - 1, game) *> game.gameState }
               } yield (simResult, nextState)
             }
@@ -64,7 +73,7 @@ object Programs {
     playMoveWithBestSimulationResult.iterateUntil(isTerminalPosition => isTerminalPosition).void
   }
 
-  def nestedMonteCarlo[F[_]: Monad: Logger, Move, Position, Score, Seed](level: Int, game: Game[F, Move, Position, Score, Seed])(
+  def nestedMonteCarlo[F[_]: Monad: Logger, Move: Eq, Position, Score, Seed](level: Int, game: Game[F, Move, Position, Score, Seed])(
       implicit ord: Ordering[Score],
       showGameState: Show[GameState[Move, Position, Score]],
       showResult: Show[Result[Move, Score]]): F[Unit] =
