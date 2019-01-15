@@ -8,33 +8,28 @@ import mcs.Prng.Seed
 import mcs.samegame.SameGame
 
 object Main extends IOApp {
-  private val position  = data.Games.jsGames10
+  private val position  = data.Games.board(7)
   private val score     = SameGame.score(position)
   private val gameState = GameState(playedMoves = List.empty[samegame.Position], score = score, position = position)
 
-  private implicit val showResult: Show[GameState[samegame.Position, samegame.Game, Int]] = Interpreters.showGameState
-
-  private def putStrLn[T: Show](t: T): IO[Unit] = IO(println(show"$t"))
+  private implicit val showGameState: Show[GameState[samegame.Position, samegame.Game, Int]] = Interpreters.showGameState
+  private implicit val showResult: Show[Result[samegame.Position, Int]]                      = Interpreters.showResult
 
   val resultState: IO[Unit] = {
     implicit val logger: Logger[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?]] =
       Interpreters.loggerState
 
-    val interpreter  = Interpreters.gameState()
-    val initialState = SearchState(Seed(23426347523L), gameState, None, None)
-    for {
-      result <- Programs.nestedMonteCarlo(2, 2, interpreter).runS(initialState)
-      _      <- putStrLn(result.gameState)(Interpreters.showGameStateAsJsFunctionCalls)
-    } yield ()
+    val interpreter  = Interpreters.gameInstanceStateT()
+    val initialState = SearchState(Seed(-1L), gameState, None, None)
+    Programs.nestedMonteCarlo(3, interpreter).runA(initialState)
   }
 
   val resultIORef: IO[Unit] = {
     val initialState                = SearchState((), gameState, None, None)
     implicit val logger: Logger[IO] = Interpreters.loggerIORef
     for {
-      interpreter <- Interpreters.gameIORef(initialState)
-      result      <- Programs.nestedMonteCarlo(2, 2, interpreter) *> interpreter.gameState
-      _           <- putStrLn(result)
+      interpreter <- Interpreters.gameInstanceIORef(initialState)
+      _           <- Programs.nestedMonteCarlo(2, interpreter)
     } yield ()
   }
 

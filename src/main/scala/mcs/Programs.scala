@@ -9,7 +9,7 @@ object Programs {
       currentState: GameState[Move, Position, Score],
       nextState: GameState[Move, Position, Score],
       currentBestSequence: Option[Result[Move, Score]],
-      simResult: GameState[Move, Position, Score])(implicit ord: Ordering[Score]): F[Unit] =
+      simResult: GameState[Move, Position, Score])(implicit ord: Ordering[Score], showResult: Show[Result[Move, Score]]): F[Unit] =
     for {
       _ <- currentBestSequence match {
         case None =>
@@ -25,17 +25,22 @@ object Programs {
       bestTotal <- game.bestTotal
       _ <- bestTotal match {
         case None =>
-          game.update(_.copy(bestTotal = Result(simResult.playedMoves, simResult.score).some))
+          val betterSequence = Result(simResult.playedMoves, simResult.score)
+          game.update(_.copy(bestTotal = betterSequence.some)) *>
+            Logger[F].log(betterSequence)
         case Some(best) if ord.gt(simResult.score, best.score) =>
-          game.update(_.copy(bestTotal = Result(simResult.playedMoves, simResult.score).some))
+          val betterSequence = Result(simResult.playedMoves, simResult.score)
+          game.update(_.copy(bestTotal = betterSequence.some)) *>
+            Logger[F].log(betterSequence)
         case _ =>
           Monad[F].pure(())
       }
     } yield ()
 
-  def nestedMonteCarlo[F[_]: Monad: Logger, Move, Position, Score, Seed](levels: Int, level: Int, game: Game[F, Move, Position, Score, Seed])(
+  private def nested[F[_]: Monad: Logger, Move, Position, Score, Seed](levels: Int, level: Int, game: Game[F, Move, Position, Score, Seed])(
       implicit ord: Ordering[Score],
-      showResult: Show[GameState[Move, Position, Score]]): F[Unit] = {
+      showGameState: Show[GameState[Move, Position, Score]],
+      showResult: Show[Result[Move, Score]]): F[Unit] = {
     val playMoveWithBestSimulationResult = for {
       legalMoves          <- game.legalMoves
       currentState        <- game.gameState
@@ -51,7 +56,7 @@ object Programs {
                 simResult <- if (level <= 1) {
                   game.simulation *> game.gameState
                 } else {
-                  nestedMonteCarlo(levels, level - 1, game) *> game.gameState
+                  nested(levels, level - 1, game) *> game.gameState
                 }
               } yield (simResult, nextState)
             }
@@ -65,4 +70,10 @@ object Programs {
 
     playMoveWithBestSimulationResult.iterateUntil(isTerminalPosition => isTerminalPosition).void
   }
+
+  def nestedMonteCarlo[F[_]: Monad: Logger, Move, Position, Score, Seed](level: Int, game: Game[F, Move, Position, Score, Seed])(
+      implicit ord: Ordering[Score],
+      showGameState: Show[GameState[Move, Position, Score]],
+      showResult: Show[Result[Move, Score]]): F[Unit] =
+    nested(level, level, game)
 }

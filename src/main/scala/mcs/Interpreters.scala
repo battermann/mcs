@@ -9,7 +9,7 @@ import mcs.Prng.Seed
 import mcs.samegame._
 
 object Interpreters {
-  def gameState(): Game[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?], samegame.Position, samegame.Game, Int, Seed] =
+  def gameInstanceStateT(): Game[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?], samegame.Position, samegame.Game, Int, Seed] =
     new Game[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?], samegame.Position, samegame.Game, Int, Seed] {
 
       def applyMove(move: samegame.Position): StateT[IO, S, Unit] =
@@ -57,7 +57,7 @@ object Interpreters {
       def update(f: S => S): StateT[IO, S, Unit] = StateT.modify[IO, S](f)
     }
 
-  def gameIORef(initial: SearchState[samegame.Position, samegame.Game, Int, Unit]): IO[Game[IO, samegame.Position, samegame.Game, Int, Unit]] =
+  def gameInstanceIORef(initial: SearchState[samegame.Position, samegame.Game, Int, Unit]): IO[Game[IO, samegame.Position, samegame.Game, Int, Unit]] =
     for {
       ref <- Ref.of[IO, SearchState[samegame.Position, samegame.Game, Int, Unit]](initial)
     } yield
@@ -123,6 +123,13 @@ object Interpreters {
       case Filled(Gray)  => "4"
   }
 
+  implicit val showMove: Show[samegame.Position] = (p: samegame.Position) => show"(${p.col}, ${p.row})"
+
+  implicit val showList: Show[List[samegame.Position]] = (ts: List[samegame.Position]) => ts.map(t => show"$t").mkString("[", ", ", "]")
+
+  implicit val showResult: Show[Result[samegame.Position, Int]] = (result: Result[samegame.Position, Int]) =>
+    show">>> Improved sequence found\n>>> Score: ${result.score}, Moves: ${result.moves.reverse}"
+
   implicit val showBoard: Show[Board] = (board: Board) =>
     board.columns.map(col => col.cells.map(c => show"$c").reverse).transpose.map(_.mkString("[", ",", "]")).mkString("\n")
 
@@ -135,7 +142,7 @@ object Interpreters {
   implicit val showGameState: Show[GameState[samegame.Position, samegame.Game, Int]] = (t: GameState[samegame.Position, samegame.Game, Int]) => show"""
        |${t.position}
        |
-       |Moves: ${t.playedMoves.reverse.map(p => s"(${p.col}, ${p.row})").mkString("[", ", ", "]")}
+       |Moves: ${t.playedMoves.reverse}
        |""".stripMargin
 
   implicit val showGameStateAsQueryParams: Show[GameState[samegame.Position, samegame.Game, Int]] = (t: GameState[samegame.Position, samegame.Game, Int]) =>
