@@ -106,52 +106,54 @@ object Interpreters {
   val loggerState: Logger[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?]] =
     new Logger[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?]] {
       def log[T: Show](t: T): StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], Unit] =
-        StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], Unit](s => IO(println(show"$t")).map((s, _)))
+        StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], Unit](s => IO(println(t.show)).map((s, _)))
     }
 
   val loggerIORef: Logger[IO] = new Logger[IO] {
-    def log[T: Show](t: T): IO[Unit] = IO(println(show"$t"))
+    def log[T: Show](t: T): IO[Unit] = IO(println(t.show))
   }
 
-  implicit val showCell: Show[CellState] = (cellState: CellState) =>
-    cellState match {
-      case Empty         => "-"
-      case Filled(Green) => "0"
-      case Filled(Blue)  => "1"
-      case Filled(Red)   => "2"
-      case Filled(Brown) => "3"
-      case Filled(Gray)  => "4"
+  implicit val showCell: Show[CellState] = Show.show {
+    case Empty         => "-"
+    case Filled(Green) => "0"
+    case Filled(Blue)  => "1"
+    case Filled(Red)   => "2"
+    case Filled(Brown) => "3"
+    case Filled(Gray)  => "4"
   }
 
-  implicit val showMove: Show[samegame.Position] = (p: samegame.Position) => show"(${p.col}, ${p.row})"
+  implicit val showMove: Show[samegame.Position] =
+    Show.show(p => show"(${p.col}, ${p.row})")
 
-  implicit val showList: Show[List[samegame.Position]] = (ts: List[samegame.Position]) => ts.map(t => show"$t").mkString("[", ", ", "]")
+  implicit val showList: Show[List[samegame.Position]] =
+    Show.show(_.map(_.show).mkString("[", ", ", "]"))
 
-  implicit val showResult: Show[Result[samegame.Position, Int]] = (result: Result[samegame.Position, Int]) =>
-    show">>> Improved sequence found\n>>> Score: ${result.score}, Moves: ${result.moves.reverse}"
+  implicit val showResult: Show[Result[samegame.Position, Int]] =
+    Show.show(result => show">>> Improved sequence found\n>>> Score: ${result.score.show}, Moves: ${result.moves.reverse.show}")
 
-  implicit val showBoard: Show[Board] = (board: Board) =>
-    board.columns.map(col => col.cells.map(c => show"$c").reverse).transpose.map(_.mkString("[", ",", "]")).mkString("\n")
+  implicit val showBoard: Show[Board] =
+    Show.show(_.columns.map(col => col.cells.map(_.show).reverse).transpose.map(_.mkString("[", ",", "]")).mkString("\n"))
 
-  implicit val showGame: Show[samegame.Game] = (game: samegame.Game) =>
-    game match {
-      case InProgress(board, score) => show"$board\n\nScore: $score (game in progress)"
-      case Finished(board, score)   => show"$board\n\nScore: $score (game finished)"
+  implicit val showGame: Show[samegame.Game] = Show.show {
+    case InProgress(board, score) => show"$board\n\nScore: $score (game in progress)"
+    case Finished(board, score)   => show"$board\n\nScore: $score (game finished)"
   }
 
-  implicit val showGameState: Show[GameState[samegame.Position, samegame.Game, Int]] = (t: GameState[samegame.Position, samegame.Game, Int]) => show"""
+  implicit val showGameState: Show[GameState[samegame.Position, samegame.Game, Int]] = Show.show(t => show"""
        |${t.position}
        |
        |Moves: ${t.playedMoves.reverse}
-       |""".stripMargin
+       |""".stripMargin)
 
-  implicit val showGameStateAsQueryParams: Show[GameState[samegame.Position, samegame.Game, Int]] = (t: GameState[samegame.Position, samegame.Game, Int]) =>
-    show"""${t.playedMoves.reverse.map(p => s"(${p.col}, ${p.row})").mkString("[", ", ", "]")}
-       |Score: ${t.score}
-       |""".stripMargin
+  implicit val showGameStateAsQueryParams: Show[GameState[samegame.Position, samegame.Game, Int]] =
+    Show.show(t => show"""Moves: ${t.playedMoves.reverse.map(p => s"move=${p.col}%2C${p.row}").mkString("&")}
+                   |
+                   |Score: ${t.score}
+                   |""".stripMargin)
 
-  implicit val showGameStateAsJsFunctionCalls: Show[GameState[samegame.Position, samegame.Game, Int]] = (t: GameState[samegame.Position, samegame.Game, Int]) =>
-    show"""${t.playedMoves.reverse.map(p => s"sg_remove(${p.col},${14 - p.row})").mkString(";")}
-          |Score: ${t.score}
-          |""".stripMargin
+  implicit val showGameStateAsJsFunctionCalls: Show[GameState[samegame.Position, samegame.Game, Int]] =
+    Show.show(t => show"""Moves: ${t.playedMoves.reverse.map(p => s"sg_remove(${p.col},${14 - p.row})").mkString(";")}
+                  |
+                  |Score: ${t.score}
+                  |""".stripMargin)
 }
