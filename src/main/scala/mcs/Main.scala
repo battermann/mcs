@@ -8,7 +8,7 @@ import mcs.Prng.Seed
 import mcs.samegame.SameGame
 
 object Main extends IOApp {
-  private val position  = data.Games.board(7)
+  private val position  = data.Games.board(15)
   private val score     = SameGame.score(position)
   private val gameState = GameState(playedMoves = List.empty[samegame.Position], score = score, position = position)
 
@@ -21,8 +21,8 @@ object Main extends IOApp {
       Interpreters.loggerState
 
     val interpreter  = Interpreters.gameInstanceStateT()
-    val initialState = SearchState(Seed(1L), gameState, None, None)
-    Programs.nestedMonteCarlo(3, interpreter).runA(initialState)
+    val initialState = SearchState(Seed(345358234L), gameState, None, None)
+    Programs.nestedMonteCarlo(1, interpreter).runA(initialState)
   }
 
   val resultIORef: IO[Unit] = {

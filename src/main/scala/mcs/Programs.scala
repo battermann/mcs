@@ -56,7 +56,8 @@ object Programs {
             .traverse { move =>
               for {
                 nextState <- game.update(_.copy(gameState = currentState)) *> game.applyMove(move) *> game.gameState
-                bestSeqOnCurrentPath = currentBestSequence.filter(cbs => isPrefixOf(cbs.moves, nextState.playedMoves))
+                bestSeqOnCurrentPath = currentBestSequence
+                  .filter(cbs => isPrefixOf(nextState.playedMoves.reverse, cbs.moves.reverse))
                 _         <- game.update(_.copy(bestSequence = bestSeqOnCurrentPath))
                 simResult <- if (level <= 1) { game.simulation *> game.gameState } else { nested(levels, level - 1, game) *> game.gameState }
               } yield (simResult, nextState)
