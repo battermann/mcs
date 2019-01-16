@@ -54,11 +54,10 @@ object Programs {
         case moves =>
           moves
             .traverse { move =>
-              val bestSeqOnCurrentPath = currentBestSequence
-                .filter(cbs => isPrefixOf(cbs.moves, move :: currentState.playedMoves))
               for {
-                nextState <- game.update(_.copy(gameState = currentState, bestSequence = bestSeqOnCurrentPath)) *>
-                  game.applyMove(move) *> game.gameState
+                nextState <- game.update(_.copy(gameState = currentState)) *> game.applyMove(move) *> game.gameState
+                bestSeqOnCurrentPath = currentBestSequence.filter(cbs => isPrefixOf(cbs.moves, nextState.playedMoves))
+                _         <- game.update(_.copy(bestSequence = bestSeqOnCurrentPath))
                 simResult <- if (level <= 1) { game.simulation *> game.gameState } else { nested(levels, level - 1, game) *> game.gameState }
               } yield (simResult, nextState)
             }

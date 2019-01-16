@@ -28,7 +28,7 @@ object Interpreters {
           SameGame.legalMoves(searchState.gameState.position)
         }
 
-      def rndInt(bound: Int): StateT[IO, S, Int] = StateT[IO, S, Int] { searchState =>
+      private def rndInt(bound: Int): StateT[IO, S, Int] = StateT[IO, S, Int] { searchState =>
         val (nextSeed, i) = searchState.seed.nextInt(bound)
         IO { (searchState.copy(seed = nextSeed), i) }
       }
@@ -76,7 +76,7 @@ object Interpreters {
         def legalMoves: IO[List[samegame.Position]] =
           ref.get.map(searchState => SameGame.legalMoves(searchState.gameState.position))
 
-        def rndInt(bound: Int): IO[Int] =
+        private def rndInt(bound: Int): IO[Int] =
           IO(scala.util.Random.nextInt(bound))
 
         def simulation: IO[Unit] = {

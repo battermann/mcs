@@ -31,7 +31,6 @@ trait Game[F[_], Move, Position, Score, Seed] {
   def simulation: F[Unit]
 
   def legalMoves: F[List[Move]]
-  def rndInt(bound: Int): F[Int]
   def gameState: F[GameState[Move, Position, Score]]
   def bestSequence: F[Option[Result[Move, Score]]]
   def bestTotal: F[Option[Result[Move, Score]]]
