@@ -1,11 +1,11 @@
 name := "mcs"
-
 version := "1.0"
-
 scalaVersion := "2.12.7"
 
 libraryDependencies ++= Seq(
-  "org.typelevel" %% "cats-effect" % "1.1.0"
+  "org.typelevel"  %% "cats-effect" % "1.1.0",
+  "org.scalatest"  %% "scalatest"   % "3.0.5" % "test",
+  "org.scalacheck" %% "scalacheck"  % "1.14.0" % "test"
 )
 
 resolvers += Resolver.sonatypeRepo("releases")
@@ -73,3 +73,5 @@ scalacOptions ++= Seq(
 )
 
 scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings")
+
+scalacOptions in (Test, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings")

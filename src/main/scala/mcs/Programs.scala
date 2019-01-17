@@ -38,7 +38,7 @@ object Programs {
       }
     } yield ()
 
-  private def nested[F[_]: Monad: Logger, Move: Eq, Position, Score, Seed](levels: Int, level: Int, game: Game[F, Move, Position, Score, Seed])(
+  private def nested[F[_]: Monad: Logger, Move: Eq, Position, Score, Seed](game: Game[F, Move, Position, Score, Seed], levels: Int, level: Int)(
       implicit ord: Ordering[Score],
       showGameState: Show[GameState[Move, Position, Score]],
       showResult: Show[Result[Move, Score]]): F[Unit] = {
@@ -55,7 +55,7 @@ object Programs {
               for {
                 nextState <- game.updateGameState(currentState) *> game.applyMove(move) *> game.gameState
                 _         <- game.updateBestSequence(currentBestSequence.filter(game.isPrefixOf(nextState)))
-                simResult <- if (level <= 1) { game.simulation *> game.gameState } else { nested(levels, level - 1, game) *> game.gameState }
+                simResult <- if (level <= 1) { game.simulation *> game.gameState } else { nested(game, levels, level - 1) *> game.gameState }
               } yield (simResult, nextState)
             }
             .map(_.maxBy(_._1.score))
@@ -69,9 +69,9 @@ object Programs {
     playMoveWithBestSimulationResult.iterateUntil(isTerminalPosition => isTerminalPosition).void
   }
 
-  def nestedMonteCarlo[F[_]: Monad: Logger, Move: Eq, Position, Score, Seed](level: Int, game: Game[F, Move, Position, Score, Seed])(
+  def nestedMonteCarlo[F[_]: Monad: Logger, Move: Eq, Position, Score, Seed](game: Game[F, Move, Position, Score, Seed], level: Int)(
       implicit ord: Ordering[Score],
       showGameState: Show[GameState[Move, Position, Score]],
       showResult: Show[Result[Move, Score]]): F[Unit] =
-    nested(level, level, game)
+    nested(game, level, level)
 }

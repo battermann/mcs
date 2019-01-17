@@ -10,7 +10,7 @@ import mcs.samegame._
 import mcs.util.ListUtils
 
 object Interpreters {
-  def gameInstanceStateT(): Game[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?], samegame.Position, samegame.Game, Int, Seed] =
+  val gameInterpreterStateT: Game[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?], samegame.Position, samegame.Game, Int, Seed] =
     new Game[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?], samegame.Position, samegame.Game, Int, Seed] {
 
       def applyMove(move: samegame.Position): StateT[IO, S, Unit] =
@@ -75,7 +75,7 @@ object Interpreters {
         }
     }
 
-  def gameInstanceIORef(initial: SearchState[samegame.Position, samegame.Game, Int, Unit]): IO[Game[IO, samegame.Position, samegame.Game, Int, Unit]] =
+  def gameInterpreterIORef(initial: SearchState[samegame.Position, samegame.Game, Int, Unit]): IO[Game[IO, samegame.Position, samegame.Game, Int, Unit]] =
     for {
       ref <- Ref.of[IO, SearchState[samegame.Position, samegame.Game, Int, Unit]](initial)
     } yield

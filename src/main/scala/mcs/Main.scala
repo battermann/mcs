@@ -8,7 +8,7 @@ import mcs.Prng.Seed
 import mcs.samegame.SameGame
 
 object Main extends IOApp {
-  private val (position, _) = data.Games.board(15)
+  private val (position, _) = data.Games.board(7)
   private val score         = SameGame.score(position)
   private val gameState     = GameState(playedMoves = List.empty[samegame.Position], score = score, position = position)
 
@@ -20,17 +20,17 @@ object Main extends IOApp {
     implicit val logger: Logger[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?]] =
       Interpreters.loggerState
 
-    val interpreter  = Interpreters.gameInstanceStateT()
-    val initialState = SearchState(Seed(345358234L), gameState, None, None)
-    Programs.nestedMonteCarlo(1, interpreter).runA(initialState)
+    val interpreter  = Interpreters.gameInterpreterStateT
+    val initialState = SearchState(Seed(101L), gameState, None, None)
+    Programs.nestedMonteCarlo(interpreter, 3).runA(initialState)
   }
 
   val search2: IO[Unit] = {
     val initialState                = SearchState((), gameState, None, None)
     implicit val logger: Logger[IO] = Interpreters.loggerIORef
     for {
-      interpreter <- Interpreters.gameInstanceIORef(initialState)
-      _           <- Programs.nestedMonteCarlo(2, interpreter)
+      interpreter <- Interpreters.gameInterpreterIORef(initialState)
+      _           <- Programs.nestedMonteCarlo(interpreter, 3)
     } yield ()
   }
 

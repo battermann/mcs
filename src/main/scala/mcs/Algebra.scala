@@ -40,6 +40,18 @@ trait Game[F[_], Move, Position, Score, Seed] {
 
 object Game {
   def apply[F[_], Move, Position, Score, Seed]()(implicit ev: Game[F, Move, Position, Score, Seed]): Game[F, Move, Position, Score, Seed] = ev
+
+  import cats.Monad
+  import cats.implicits._
+
+  object laws {
+    def simulationIsTerminal[F[_]: Monad, Move, Position, Score, Seed](ev: Game[F, Move, Position, Score, Seed]): F[Boolean] = {
+      for {
+        _          <- ev.simulation.as(true)
+        legalMoves <- ev.legalMoves
+      } yield legalMoves.isEmpty
+    }
+  }
 }
 
 trait Logger[F[_]] {
