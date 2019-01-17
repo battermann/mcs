@@ -1,12 +1,13 @@
 package mcs
 
-import cats.Show
+import cats.{Eq, Show}
 import cats.data.StateT
 import cats.effect.IO
 import cats.effect.concurrent.Ref
 import cats.implicits._
 import mcs.Prng.Seed
 import mcs.samegame._
+import mcs.util.ListUtils
 
 object Interpreters {
   def gameInstanceStateT(): Game[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?], samegame.Position, samegame.Game, Int, Seed] =
@@ -54,7 +55,24 @@ object Interpreters {
       def bestTotal: StateT[IO, S, Option[Result[Position, Int]]] =
         StateT.inspect(_.bestTotal)
 
-      def update(f: S => S): StateT[IO, S, Unit] = StateT.modify[IO, S](f)
+      def updateGameState(gameState: GameState[Position, samegame.Game, Int]): StateT[IO, SearchState[Position, samegame.Game, Int, Seed], Unit] =
+        StateT.modify[IO, S](_.copy(gameState = gameState))
+
+      def updateBestTotal(bestTotal: Result[Position, Int]): StateT[IO, SearchState[Position, samegame.Game, Int, Seed], Unit] =
+        StateT.modify[IO, S](_.copy(bestTotal = bestTotal.some))
+
+      def updateBestSequence(bestSequence: Option[Result[Position, Int]]): StateT[IO, SearchState[Position, samegame.Game, Int, Seed], Unit] =
+        StateT.modify[IO, S](_.copy(bestSequence = bestSequence))
+
+      def isPrefixOf(gameState: GameState[Position, samegame.Game, Int])(result: Result[Position, Int]): Boolean =
+        ListUtils.isSuffixOf(gameState.playedMoves, result.moves)(Eq.fromUniversalEquals)
+
+      def next(gameState: GameState[Position, samegame.Game, Int], result: Result[Position, Int]): Option[Position] =
+        if (isPrefixOf(gameState)(result) && gameState.playedMoves.length < result.moves.length) {
+          result.moves(result.moves.length - 1 - gameState.playedMoves.length).some
+        } else {
+          None
+        }
     }
 
   def gameInstanceIORef(initial: SearchState[samegame.Position, samegame.Game, Int, Unit]): IO[Game[IO, samegame.Position, samegame.Game, Int, Unit]] =
@@ -100,7 +118,25 @@ object Interpreters {
         def bestTotal: IO[Option[Result[Position, Int]]] =
           ref.get.map(_.bestTotal)
 
-        def update(f: S => S): IO[Unit] = ref.update(f)
+        def updateGameState(gameState: GameState[Position, samegame.Game, Int]): IO[Unit] =
+          ref.update(_.copy(gameState = gameState))
+
+        def updateBestTotal(bestTotal: Result[Position, Int]): IO[Unit] =
+          ref.update(_.copy(bestTotal = bestTotal.some))
+
+        def updateBestSequence(bestSequence: Option[Result[Position, Int]]): IO[Unit] =
+          ref.update(_.copy(bestSequence = bestSequence))
+
+        def isPrefixOf(gameState: GameState[Position, samegame.Game, Int])(result: Result[Position, Int]): Boolean =
+          ListUtils.isSuffixOf(gameState.playedMoves, result.moves)(Eq.fromUniversalEquals)
+
+        def next(gameState: GameState[Position, samegame.Game, Int], result: Result[Position, Int]): Option[Position] =
+          if (isPrefixOf(gameState)(result) && gameState.playedMoves.length < result.moves.length) {
+            result.moves(result.moves.length - 1 - gameState.playedMoves.length).some
+          } else {
+            None
+          }
+
       }
 
   val loggerState: Logger[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?]] =

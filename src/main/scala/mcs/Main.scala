@@ -8,15 +8,15 @@ import mcs.Prng.Seed
 import mcs.samegame.SameGame
 
 object Main extends IOApp {
-  private val position  = data.Games.board(15)
-  private val score     = SameGame.score(position)
-  private val gameState = GameState(playedMoves = List.empty[samegame.Position], score = score, position = position)
+  private val (position, _) = data.Games.board(15)
+  private val score         = SameGame.score(position)
+  private val gameState     = GameState(playedMoves = List.empty[samegame.Position], score = score, position = position)
 
   private implicit val showGameState: Show[GameState[samegame.Position, samegame.Game, Int]] = Interpreters.showGameState
   private implicit val showResult: Show[Result[samegame.Position, Int]]                      = Interpreters.showResult
   implicit val positionEq: Eq[samegame.Position]                                             = Eq.fromUniversalEquals
 
-  val resultState: IO[Unit] = {
+  val search1: IO[Unit] = {
     implicit val logger: Logger[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?]] =
       Interpreters.loggerState
 
@@ -25,7 +25,7 @@ object Main extends IOApp {
     Programs.nestedMonteCarlo(1, interpreter).runA(initialState)
   }
 
-  val resultIORef: IO[Unit] = {
+  val search2: IO[Unit] = {
     val initialState                = SearchState((), gameState, None, None)
     implicit val logger: Logger[IO] = Interpreters.loggerIORef
     for {
@@ -35,6 +35,5 @@ object Main extends IOApp {
   }
 
   def run(args: List[String]): IO[ExitCode] =
-    // resultIORef.as(ExitCode.Success)
-    resultState.as(ExitCode.Success)
+    search1.as(ExitCode.Success)
 }

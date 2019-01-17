@@ -4,12 +4,6 @@ import cats.implicits._
 import cats.{Eq, Monad, Show}
 
 object Programs {
-  private def isPrefixOf[A: Eq](xs: List[A], ys: List[A]): Boolean =
-    (xs, ys) match {
-      case (Nil, _)             => true
-      case (_, Nil)             => false
-      case (xh :: xt, yh :: yt) => (xh === yh) && isPrefixOf(xt, yt)
-    }
   private def chooseNextMove[F[_]: Monad: Logger, Move, Position, Score, Seed](
       game: Game[F, Move, Position, Score, Seed],
       currentState: GameState[Move, Position, Score],
@@ -19,22 +13,26 @@ object Programs {
     for {
       _ <- currentBestSequence match {
         case None =>
-          game.update(_.copy(gameState = nextState, bestSequence = Result(simResult.playedMoves, simResult.score).some))
-        case Some(currentBest) if ord.gt(simResult.score, currentBest.score) =>
-          game.update(_.copy(gameState = nextState, bestSequence = Result(simResult.playedMoves, simResult.score).some))
+          game.updateGameState(nextState) *> game.updateBestSequence(Result(simResult.playedMoves, simResult.score).some)
         case Some(currentBest) =>
-          // If none of the moves improve on the best sequence, the move of the best sequence is played
-          val nextMove = currentBest.moves(currentBest.moves.length - 1 - currentState.playedMoves.length)
-          game.update(_.copy(gameState = currentState, bestSequence = currentBest.some)) *> game.applyMove(nextMove)
+          if (ord.gteq(simResult.score, currentBest.score)) {
+            game.updateGameState(nextState) *> game.updateBestSequence(Result(simResult.playedMoves, simResult.score).some)
+          } else {
+            // If none of the moves improve or equals best sequence, the move of the best sequence is played
+            game
+              .next(currentState, currentBest)
+              .fold(game.updateGameState(nextState) *> game.updateBestSequence(Result(simResult.playedMoves, simResult.score).some))(m =>
+                game.updateGameState(currentState) *> game.updateBestSequence(currentBest.some) *> game.applyMove(m))
+          }
       }
       bestTotal <- game.bestTotal
       _ <- bestTotal match {
         case None =>
           val betterSequence = Result(simResult.playedMoves, simResult.score)
-          game.update(_.copy(bestTotal = betterSequence.some)) *> Logger[F].log(betterSequence)
+          game.updateBestTotal(betterSequence) *> Logger[F].log(betterSequence)
         case Some(best) if ord.gt(simResult.score, best.score) =>
           val betterSequence = Result(simResult.playedMoves, simResult.score)
-          game.update(_.copy(bestTotal = betterSequence.some)) *> Logger[F].log(betterSequence)
+          game.updateBestTotal(betterSequence) *> Logger[F].log(betterSequence)
         case _ =>
           Monad[F].pure(())
       }
@@ -55,10 +53,8 @@ object Programs {
           moves
             .traverse { move =>
               for {
-                nextState <- game.update(_.copy(gameState = currentState)) *> game.applyMove(move) *> game.gameState
-                bestSeqOnCurrentPath = currentBestSequence
-                  .filter(cbs => isPrefixOf(nextState.playedMoves.reverse, cbs.moves.reverse))
-                _         <- game.update(_.copy(bestSequence = bestSeqOnCurrentPath))
+                nextState <- game.updateGameState(currentState) *> game.applyMove(move) *> game.gameState
+                _         <- game.updateBestSequence(currentBestSequence.filter(game.isPrefixOf(nextState)))
                 simResult <- if (level <= 1) { game.simulation *> game.gameState } else { nested(levels, level - 1, game) *> game.gameState }
               } yield (simResult, nextState)
             }
