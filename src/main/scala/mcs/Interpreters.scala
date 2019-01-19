@@ -198,4 +198,5 @@ object Interpreters {
                   |Score: ${t.score}
                   |""".stripMargin)
 
+  implicit val positionEq: Eq[Move] = Eq.fromUniversalEquals
 }
