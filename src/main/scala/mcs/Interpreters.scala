@@ -10,10 +10,15 @@ import mcs.samegame._
 import mcs.util.ListUtils
 
 object Interpreters {
-  val gameInterpreterStateT: Game[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?], samegame.Position, samegame.Game, Int, Seed] =
-    new Game[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?], samegame.Position, samegame.Game, Int, Seed] {
+  type StateIO[A] = StateT[IO, SearchState[Move, BoardPosition, Int, Seed], A]
 
-      def applyMove(move: samegame.Position): StateT[IO, S, Unit] =
+  type Move          = samegame.Position
+  type BoardPosition = samegame.Game
+
+  val gameInterpreterStateT: Game[StateIO, Move, BoardPosition, Int, Seed] =
+    new Game[StateIO, Move, BoardPosition, Int, Seed] {
+
+      def applyMove(move: Move): StateIO[Unit] =
         StateT.modify[IO, S] { searchState =>
           val nextPosition = SameGame.applyMove(move, searchState.gameState.position)
           val gameState = searchState.gameState.copy(
@@ -24,17 +29,17 @@ object Interpreters {
           searchState.copy(gameState = gameState)
         }
 
-      def legalMoves: StateT[IO, S, List[samegame.Position]] =
-        StateT.inspect[IO, S, List[samegame.Position]] { searchState =>
+      def legalMoves: StateIO[List[Move]] =
+        StateT.inspect[IO, S, List[Move]] { searchState =>
           SameGame.legalMoves(searchState.gameState.position)
         }
 
-      private def rndInt(bound: Int): StateT[IO, S, Int] = StateT[IO, S, Int] { searchState =>
+      private def rndInt(bound: Int): StateIO[Int] = StateT[IO, S, Int] { searchState =>
         val (nextSeed, i) = searchState.seed.nextInt(bound)
         IO { (searchState.copy(seed = nextSeed), i) }
       }
 
-      def simulation: StateT[IO, S, Unit] = {
+      def simulation: StateIO[Unit] = {
         val playRndLegalMove = for {
           moves <- legalMoves
           isTerminalPosition <- moves match {
@@ -46,28 +51,28 @@ object Interpreters {
         playRndLegalMove.iterateUntil(isTerminalPosition => isTerminalPosition).void
       }
 
-      def gameState: StateT[IO, S, GameState[Position, samegame.Game, Int]] =
+      def gameState: StateIO[GameState[Position, BoardPosition, Int]] =
         StateT.inspect(_.gameState)
 
-      def bestSequence: StateT[IO, S, Option[Result[Position, Int]]] =
+      def bestSequence: StateIO[Option[Result[Position, Int]]] =
         StateT.inspect(_.bestSequence)
 
-      def bestTotal: StateT[IO, S, Option[Result[Position, Int]]] =
+      def bestTotal: StateIO[Option[Result[Position, Int]]] =
         StateT.inspect(_.bestTotal)
 
-      def updateGameState(gameState: GameState[Position, samegame.Game, Int]): StateT[IO, SearchState[Position, samegame.Game, Int, Seed], Unit] =
+      def updateGameState(gameState: GameState[Position, BoardPosition, Int]): StateT[IO, SearchState[Position, BoardPosition, Int, Seed], Unit] =
         StateT.modify[IO, S](_.copy(gameState = gameState))
 
-      def updateBestTotal(bestTotal: Result[Position, Int]): StateT[IO, SearchState[Position, samegame.Game, Int, Seed], Unit] =
+      def updateBestTotal(bestTotal: Result[Position, Int]): StateT[IO, SearchState[Position, BoardPosition, Int, Seed], Unit] =
         StateT.modify[IO, S](_.copy(bestTotal = bestTotal.some))
 
-      def updateBestSequence(bestSequence: Option[Result[Position, Int]]): StateT[IO, SearchState[Position, samegame.Game, Int, Seed], Unit] =
+      def updateBestSequence(bestSequence: Option[Result[Position, Int]]): StateT[IO, SearchState[Position, BoardPosition, Int, Seed], Unit] =
         StateT.modify[IO, S](_.copy(bestSequence = bestSequence))
 
-      def isPrefixOf(gameState: GameState[Position, samegame.Game, Int])(result: Result[Position, Int]): Boolean =
+      def isPrefixOf(gameState: GameState[Position, BoardPosition, Int])(result: Result[Position, Int]): Boolean =
         ListUtils.isSuffixOf(gameState.playedMoves, result.moves)(Eq.fromUniversalEquals)
 
-      def next(gameState: GameState[Position, samegame.Game, Int], result: Result[Position, Int]): Option[Position] =
+      def next(gameState: GameState[Position, BoardPosition, Int], result: Result[Position, Int]): Option[Position] =
         if (isPrefixOf(gameState)(result) && gameState.playedMoves.length < result.moves.length) {
           result.moves(result.moves.length - 1 - gameState.playedMoves.length).some
         } else {
@@ -75,12 +80,12 @@ object Interpreters {
         }
     }
 
-  def gameInterpreterIORef(initial: SearchState[samegame.Position, samegame.Game, Int, Unit]): IO[Game[IO, samegame.Position, samegame.Game, Int, Unit]] =
+  def gameInterpreterIORef(initial: SearchState[Move, BoardPosition, Int, Unit]): IO[Game[IO, Move, BoardPosition, Int, Unit]] =
     for {
-      ref <- Ref.of[IO, SearchState[samegame.Position, samegame.Game, Int, Unit]](initial)
+      ref <- Ref.of[IO, SearchState[Move, BoardPosition, Int, Unit]](initial)
     } yield
-      new Game[IO, samegame.Position, samegame.Game, Int, Unit] {
-        def applyMove(move: samegame.Position): IO[Unit] =
+      new Game[IO, Move, BoardPosition, Int, Unit] {
+        def applyMove(move: Move): IO[Unit] =
           ref.update { searchState =>
             val nextPosition = SameGame.applyMove(move, searchState.gameState.position)
             val gameState = searchState.gameState.copy(
@@ -91,7 +96,7 @@ object Interpreters {
             searchState.copy(gameState = gameState)
           }
 
-        def legalMoves: IO[List[samegame.Position]] =
+        def legalMoves: IO[List[Move]] =
           ref.get.map(searchState => SameGame.legalMoves(searchState.gameState.position))
 
         private def rndInt(bound: Int): IO[Int] =
@@ -109,7 +114,7 @@ object Interpreters {
           playRndLegalMove.iterateUntil(isTerminalPosition => isTerminalPosition).void
         }
 
-        def gameState: IO[GameState[Position, samegame.Game, Int]] =
+        def gameState: IO[GameState[Position, BoardPosition, Int]] =
           ref.get.map(_.gameState)
 
         def bestSequence: IO[Option[Result[Position, Int]]] =
@@ -118,7 +123,7 @@ object Interpreters {
         def bestTotal: IO[Option[Result[Position, Int]]] =
           ref.get.map(_.bestTotal)
 
-        def updateGameState(gameState: GameState[Position, samegame.Game, Int]): IO[Unit] =
+        def updateGameState(gameState: GameState[Position, BoardPosition, Int]): IO[Unit] =
           ref.update(_.copy(gameState = gameState))
 
         def updateBestTotal(bestTotal: Result[Position, Int]): IO[Unit] =
@@ -127,10 +132,10 @@ object Interpreters {
         def updateBestSequence(bestSequence: Option[Result[Position, Int]]): IO[Unit] =
           ref.update(_.copy(bestSequence = bestSequence))
 
-        def isPrefixOf(gameState: GameState[Position, samegame.Game, Int])(result: Result[Position, Int]): Boolean =
+        def isPrefixOf(gameState: GameState[Position, BoardPosition, Int])(result: Result[Position, Int]): Boolean =
           ListUtils.isSuffixOf(gameState.playedMoves, result.moves)(Eq.fromUniversalEquals)
 
-        def next(gameState: GameState[Position, samegame.Game, Int], result: Result[Position, Int]): Option[Position] =
+        def next(gameState: GameState[Position, BoardPosition, Int], result: Result[Position, Int]): Option[Position] =
           if (isPrefixOf(gameState)(result) && gameState.playedMoves.length < result.moves.length) {
             result.moves(result.moves.length - 1 - gameState.playedMoves.length).some
           } else {
@@ -139,10 +144,10 @@ object Interpreters {
 
       }
 
-  val loggerState: Logger[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?]] =
-    new Logger[StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], ?]] {
-      def log[T: Show](t: T): StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], Unit] =
-        StateT[IO, SearchState[samegame.Position, samegame.Game, Int, Seed], Unit](s => IO(println(t.show)).map((s, _)))
+  val loggerState: Logger[StateIO] =
+    new Logger[StateIO] {
+      def log[T: Show](t: T): StateT[IO, SearchState[Move, BoardPosition, Int, Seed], Unit] =
+        StateT[IO, SearchState[Move, BoardPosition, Int, Seed], Unit](s => IO(println(t.show)).map((s, _)))
     }
 
   val loggerIORef: Logger[IO] = new Logger[IO] {
@@ -158,36 +163,36 @@ object Interpreters {
     case Filled(Gray)  => "4"
   }
 
-  implicit val showMove: Show[samegame.Position] =
+  implicit val showMove: Show[Move] =
     Show.show(p => show"(${p.col}, ${p.row})")
 
-  implicit val showList: Show[List[samegame.Position]] =
+  implicit val showList: Show[List[Move]] =
     Show.show(_.map(_.show).mkString("[", ", ", "]"))
 
-  implicit val showResult: Show[Result[samegame.Position, Int]] =
+  implicit val showResult: Show[Result[Move, Int]] =
     Show.show(result => show">>> Improved sequence found\n>>> Score: ${result.score.show}, Moves: ${result.moves.reverse.show}")
 
   implicit val showBoard: Show[Board] =
     Show.show(_.columns.map(col => col.cells.map(_.show).reverse).transpose.map(_.mkString("[", ",", "]")).mkString("\n"))
 
-  implicit val showGame: Show[samegame.Game] = Show.show {
+  implicit val showGame: Show[BoardPosition] = Show.show {
     case InProgress(board, score) => show"$board\n\nScore: $score (game in progress)"
     case Finished(board, score)   => show"$board\n\nScore: $score (game finished)"
   }
 
-  implicit val showGameState: Show[GameState[samegame.Position, samegame.Game, Int]] = Show.show(t => show"""
+  implicit val showGameState: Show[GameState[Move, BoardPosition, Int]] = Show.show(t => show"""
        |${t.position}
        |
        |Moves: ${t.playedMoves.reverse}
        |""".stripMargin)
 
-  implicit val showGameStateAsQueryParams: Show[GameState[samegame.Position, samegame.Game, Int]] =
+  val showGameStateAsQueryParams: Show[GameState[Move, BoardPosition, Int]] =
     Show.show(t => show"""Moves: ${t.playedMoves.reverse.map(p => s"move=${p.col}%2C${p.row}").mkString("&")}
                    |
                    |Score: ${t.score}
                    |""".stripMargin)
 
-  implicit val showGameStateAsJsFunctionCalls: Show[GameState[samegame.Position, samegame.Game, Int]] =
+  val showGameStateAsJsFunctionCalls: Show[GameState[Move, BoardPosition, Int]] =
     Show.show(t => show"""Moves: ${t.playedMoves.reverse.map(p => s"sg_remove(${p.col},${14 - p.row})").mkString(";")}
                   |
                   |Score: ${t.score}

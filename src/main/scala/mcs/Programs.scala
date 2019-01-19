@@ -4,12 +4,13 @@ import cats.implicits._
 import cats.{Eq, Monad, Show}
 
 object Programs {
-  private def chooseNextMove[F[_]: Monad: Logger, Move, Position, Score, Seed](
-      game: Game[F, Move, Position, Score, Seed],
-      currentState: GameState[Move, Position, Score],
-      nextState: GameState[Move, Position, Score],
-      currentBestSequence: Option[Result[Move, Score]],
-      simResult: GameState[Move, Position, Score])(implicit ord: Ordering[Score], showResult: Show[Result[Move, Score]]): F[Unit] =
+  private def chooseNextMove[F[_]: Monad: Logger, Move, Position, Score, Seed](currentState: GameState[Move, Position, Score],
+                                                                               nextState: GameState[Move, Position, Score],
+                                                                               currentBestSequence: Option[Result[Move, Score]],
+                                                                               simResult: GameState[Move, Position, Score])(
+      implicit game: Game[F, Move, Position, Score, Seed],
+      ord: Ordering[Score],
+      showResult: Show[Result[Move, Score]]): F[Unit] =
     for {
       _ <- currentBestSequence match {
         case None =>
@@ -38,10 +39,10 @@ object Programs {
       }
     } yield ()
 
-  private def nested[F[_]: Monad: Logger, Move: Eq, Position, Score, Seed](game: Game[F, Move, Position, Score, Seed], levels: Int, level: Int)(
-      implicit ord: Ordering[Score],
-      showGameState: Show[GameState[Move, Position, Score]],
-      showResult: Show[Result[Move, Score]]): F[Unit] = {
+  private def nested[F[_]: Monad: Logger, Move: Eq, Position, Score, Seed](levels: Int, level: Int)(implicit game: Game[F, Move, Position, Score, Seed],
+                                                                                                    ord: Ordering[Score],
+                                                                                                    showGameState: Show[GameState[Move, Position, Score]],
+                                                                                                    showResult: Show[Result[Move, Score]]): F[Unit] = {
     val playMoveWithBestSimulationResult = for {
       legalMoves          <- game.legalMoves
       currentState        <- game.gameState
@@ -55,13 +56,15 @@ object Programs {
               for {
                 nextState <- game.updateGameState(currentState) *> game.applyMove(move) *> game.gameState
                 _         <- game.updateBestSequence(currentBestSequence.filter(game.isPrefixOf(nextState)))
-                simResult <- if (level <= 1) { game.simulation *> game.gameState } else { nested(game, levels, level - 1) *> game.gameState }
+                simResult <- if (level <= 1) { game.simulation *> game.gameState } else {
+                  nested[F, Move, Position, Score, Seed](levels, level - 1) *> game.gameState
+                }
               } yield (simResult, nextState)
             }
             .map(_.maxBy(_._1.score))
             .flatMap {
               case (bestSimResult, nextState) =>
-                chooseNextMove(game, currentState, nextState, currentBestSequence, bestSimResult).as(false)
+                chooseNextMove[F, Move, Position, Score, Seed](currentState, nextState, currentBestSequence, bestSimResult).as(false)
             }
       }
     } yield isTerminalPosition
@@ -69,9 +72,9 @@ object Programs {
     playMoveWithBestSimulationResult.iterateUntil(isTerminalPosition => isTerminalPosition).void
   }
 
-  def nestedMonteCarlo[F[_]: Monad: Logger, Move: Eq, Position, Score, Seed](game: Game[F, Move, Position, Score, Seed], level: Int)(
-      implicit ord: Ordering[Score],
-      showGameState: Show[GameState[Move, Position, Score]],
-      showResult: Show[Result[Move, Score]]): F[Unit] =
-    nested(game, level, level)
+  def nestedMonteCarlo[F[_]: Monad: Logger, Move: Eq, Position, Score, Seed](level: Int)(implicit game: Game[F, Move, Position, Score, Seed],
+                                                                                         ord: Ordering[Score],
+                                                                                         showGameState: Show[GameState[Move, Position, Score]],
+                                                                                         showResult: Show[Result[Move, Score]]): F[Unit] =
+    nested[F, Move, Position, Score, Seed](level, level)
 }
