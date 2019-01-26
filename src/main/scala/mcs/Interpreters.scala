@@ -10,16 +10,25 @@ import mcs.samegame._
 import mcs.util.ListUtils
 
 object Interpreters {
-  type StateIO[A] = StateT[IO, SearchState[Move, BoardPosition, Int, Seed], A]
 
   type Move          = samegame.Position
   type BoardPosition = samegame.Game
+
+  final case class SearchState[S](
+      seed: S,
+      gameState: GameState[Move, BoardPosition, Int],
+      bestSequence: Option[Result[Move, Int]],
+      /** `bestTotal` is not driving the search. But tracks overall best result for logging. */
+      bestTotal: Option[Result[Move, Int]]
+  )
+
+  type StateIO[A] = StateT[IO, SearchState[Seed], A]
 
   val gameInterpreterStateT: Game[StateIO, Move, BoardPosition, Int, Seed] =
     new Game[StateIO, Move, BoardPosition, Int, Seed] {
 
       def applyMove(move: Move): StateIO[Unit] =
-        StateT.modify[IO, S] { searchState =>
+        StateT.modify[IO, SearchState[Seed]] { searchState =>
           val nextPosition = SameGame.applyMove(move, searchState.gameState.position)
           val gameState = searchState.gameState.copy(
             position = nextPosition,
@@ -30,11 +39,11 @@ object Interpreters {
         }
 
       def legalMoves: StateIO[List[Move]] =
-        StateT.inspect[IO, S, List[Move]] { searchState =>
+        StateT.inspect[IO, SearchState[Seed], List[Move]] { searchState =>
           SameGame.legalMoves(searchState.gameState.position)
         }
 
-      private def rndInt(bound: Int): StateIO[Int] = StateT[IO, S, Int] { searchState =>
+      private def rndInt(bound: Int): StateIO[Int] = StateT[IO, SearchState[Seed], Int] { searchState =>
         val (nextSeed, i) = searchState.seed.nextInt(bound)
         IO { (searchState.copy(seed = nextSeed), i) }
       }
@@ -43,7 +52,7 @@ object Interpreters {
         val playRndLegalMove = for {
           moves <- legalMoves
           isTerminalPosition <- moves match {
-            case Nil => StateT.pure[IO, S, Boolean](true)
+            case Nil => StateT.pure[IO, SearchState[Seed], Boolean](true)
             case ms  => rndInt(ms.length).flatMap(i => applyMove(ms(i))).as(false)
           }
         } yield isTerminalPosition
@@ -60,14 +69,14 @@ object Interpreters {
       def bestTotal: StateIO[Option[Result[Position, Int]]] =
         StateT.inspect(_.bestTotal)
 
-      def updateGameState(gameState: GameState[Position, BoardPosition, Int]): StateT[IO, SearchState[Position, BoardPosition, Int, Seed], Unit] =
-        StateT.modify[IO, S](_.copy(gameState = gameState))
+      def updateGameState(gameState: GameState[Position, BoardPosition, Int]): StateT[IO, SearchState[Seed], Unit] =
+        StateT.modify[IO, SearchState[Seed]](_.copy(gameState = gameState))
 
-      def updateBestTotal(bestTotal: Result[Position, Int]): StateT[IO, SearchState[Position, BoardPosition, Int, Seed], Unit] =
-        StateT.modify[IO, S](_.copy(bestTotal = bestTotal.some))
+      def updateBestTotal(bestTotal: Result[Position, Int]): StateT[IO, SearchState[Seed], Unit] =
+        StateT.modify[IO, SearchState[Seed]](_.copy(bestTotal = bestTotal.some))
 
-      def updateBestSequence(bestSequence: Option[Result[Position, Int]]): StateT[IO, SearchState[Position, BoardPosition, Int, Seed], Unit] =
-        StateT.modify[IO, S](_.copy(bestSequence = bestSequence))
+      def updateBestSequence(bestSequence: Option[Result[Position, Int]]): StateT[IO, SearchState[Seed], Unit] =
+        StateT.modify[IO, SearchState[Seed]](_.copy(bestSequence = bestSequence))
 
       def isPrefixOf(gameState: GameState[Position, BoardPosition, Int])(result: Result[Position, Int]): Boolean =
         ListUtils.isSuffixOf(gameState.playedMoves, result.moves)(Eq.fromUniversalEquals)
@@ -79,10 +88,12 @@ object Interpreters {
           None
         }
     }
+  
+  
 
-  def gameInterpreterIORef(initial: SearchState[Move, BoardPosition, Int, Unit]): IO[Game[IO, Move, BoardPosition, Int, Unit]] =
+  def gameInterpreterIORef(initial: SearchState[Unit]): IO[Game[IO, Move, BoardPosition, Int, Unit]] =
     for {
-      ref <- Ref.of[IO, SearchState[Move, BoardPosition, Int, Unit]](initial)
+      ref <- Ref.of[IO, SearchState[Unit]](initial)
     } yield
       new Game[IO, Move, BoardPosition, Int, Unit] {
         def applyMove(move: Move): IO[Unit] =
@@ -144,10 +155,10 @@ object Interpreters {
 
       }
 
-  val loggerState: Logger[StateIO] =
+  def loggerState(): Logger[StateIO] =
     new Logger[StateIO] {
-      def log[T: Show](t: T): StateT[IO, SearchState[Move, BoardPosition, Int, Seed], Unit] =
-        StateT[IO, SearchState[Move, BoardPosition, Int, Seed], Unit](s => IO(println(t.show)).map((s, _)))
+      def log[T: Show](t: T): StateT[IO, SearchState[Seed], Unit] =
+        StateT[IO, SearchState[Seed], Unit](s => IO(println(t.show)).map((s, _)))
     }
 
   val loggerIORef: Logger[IO] = new Logger[IO] {

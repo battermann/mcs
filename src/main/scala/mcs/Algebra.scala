@@ -13,17 +13,7 @@ final case class Result[Move, Score](
     score: Score
 )
 
-final case class SearchState[Move, Position, Score, Seed](
-    seed: Seed,
-    gameState: GameState[Move, Position, Score],
-    bestSequence: Option[Result[Move, Score]],
-    /** `bestTotal` is not driving the search. But tracks overall best result for logging. */
-    bestTotal: Option[Result[Move, Score]]
-)
-
 trait Game[F[_], Move, Position, Score, Seed] {
-  type S = SearchState[Move, Position, Score, Seed]
-
   def applyMove(move: Move): F[Unit]
   def simulation: F[Unit]
   def updateGameState(gameState: GameState[Move, Position, Score]): F[Unit]
