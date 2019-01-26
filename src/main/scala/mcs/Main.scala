@@ -30,7 +30,7 @@ object Main extends IOApp {
         .parTraverse { seed =>
           Programs
             .nestedMonteCarlo[StateIO, Move, BoardPosition, Int, Seed](ref.mapK[StateIO](StateT.liftK), level)
-            .runA(SearchState(seed, gameState, None, None))
+            .runA(SearchState(seed, gameState, None))
         }
       _ <- IO(println(show"""\nBest result:\n${results.maxBy(_.score)}"""))
     } yield ()

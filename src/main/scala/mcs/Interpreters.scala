@@ -18,8 +18,6 @@ object Interpreters {
       seed: S,
       gameState: GameState[Move, BoardPosition, Int],
       bestSequence: Option[Result[Move, Int]],
-      /** `bestTotal` is not driving the search. But tracks overall best result for logging. */
-      bestTotal: Option[Result[Move, Int]]
   )
 
   type StateIO[A] = StateT[IO, SearchState[Seed], A]
