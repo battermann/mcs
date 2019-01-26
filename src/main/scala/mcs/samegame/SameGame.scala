@@ -142,4 +142,7 @@ object SameGame {
       case InProgress(_, score) => score
       case Finished(_, score)   => score
     }
+
+  def apply(board: List[List[Int]]): Game =
+    SameGame.evaluateGameState(Board(board.map(c => Column(c.map(s => Filled(Color(s)))))), 0)
 }
