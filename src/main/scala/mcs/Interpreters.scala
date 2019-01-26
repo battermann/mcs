@@ -46,12 +46,27 @@ object Interpreters {
         IO { (searchState.copy(seed = nextSeed), i) }
       }
 
+//      def simulation: StateIO[Unit] = {
+//        val playRndLegalMove = for {
+//          moves <- legalMoves
+//          isTerminalPosition <- moves match {
+//            case Nil => StateT.pure[IO, SearchState[Seed], Boolean](true)
+//            case ms  => rndInt(ms.length).flatMap(i => applyMove(ms(i))).as(false)
+//          }
+//        } yield isTerminalPosition
+//
+//        playRndLegalMove.iterateUntil(identity).void
+//      }
+
       def simulation: StateIO[Unit] = {
         val playRndLegalMove = for {
           moves <- legalMoves
-          isTerminalPosition <- moves match {
-            case Nil => StateT.pure[IO, SearchState[Seed], Boolean](true)
-            case ms  => rndInt(ms.length).flatMap(i => applyMove(ms(i))).as(false)
+          gs    <- gameState
+          tabuColor = SameGame.predominantColor(gs.position)
+          isTerminalPosition <- moves.partition(m => SameGame.color(gs.position, m) == tabuColor) match {
+            case (Nil, Nil)       => StateT.pure[IO, SearchState[Seed], Boolean](true)
+            case (tabuMoves, Nil) => rndInt(tabuMoves.length).flatMap(i => applyMove(tabuMoves(i))).as(false)
+            case (_, ms)          => rndInt(ms.length).flatMap(i => applyMove(ms(i))).as(false)
           }
         } yield isTerminalPosition
 

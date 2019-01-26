@@ -9,6 +9,7 @@ import mcs.Prng.Seed
 import mcs.samegame.SameGame
 
 import scala.concurrent.ExecutionContext
+import scala.util.Try
 
 object Main extends IOApp {
   private implicit val ctx: ContextShift[IO]   = IO.contextShift(ExecutionContext.global)
@@ -16,17 +17,17 @@ object Main extends IOApp {
   private implicit val interpreter: Game[StateIO, Move, BoardPosition, Int, Seed] =
     Interpreters.gameInterpreterStateT
 
-  private val level         = 3
-  private val (position, _) = data.Games.board(7)
+  private val (position, _) = data.Games.jsGames10
   private val score         = SameGame.score(position)
   private val gameState     = GameState(playedMoves = List.empty[Move], score = score, position = position)
 
-  private val startSearch: IO[Unit] = {
+  private def startSearch(level: Int): IO[Unit] = {
     for {
       cores <- IO(Runtime.getRuntime.availableProcessors())
-      seeds <- List.fill(cores)(IO(Seed(scala.util.Random.nextLong()))).sequence
+      seeds <- List.fill(cores - 2)(IO(scala.util.Random.nextLong())).sequence
       ref   <- Ref.of[IO, Option[Result[Move, Int]]](None)
       results <- seeds
+        .map(Seed)
         .parTraverse { seed =>
           Programs
             .nestedMonteCarlo[StateIO, Move, BoardPosition, Int, Seed](ref.mapK[StateIO](StateT.liftK), level)
@@ -37,5 +38,5 @@ object Main extends IOApp {
   }
 
   def run(args: List[String]): IO[ExitCode] =
-    startSearch.as(ExitCode.Success)
+    startSearch(args.headOption.flatMap(arg => Try(arg.toInt).toOption).getOrElse(1)).as(ExitCode.Success)
 }

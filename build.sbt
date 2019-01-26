@@ -1,6 +1,8 @@
 name := "mcs"
 version := "1.0"
-scalaVersion := "2.12.7"
+scalaVersion := "2.12.8"
+
+enablePlugins(JavaAppPackaging)
 
 libraryDependencies ++= Seq(
   "org.typelevel"  %% "cats-effect" % "1.1.0",

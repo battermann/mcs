@@ -2,6 +2,7 @@ package mcs.samegame
 
 import Column.CellMapper
 import Board.ColumnMapper
+import cats.implicits._
 
 object SameGame {
   private val bonus = 1000
@@ -106,6 +107,33 @@ object SameGame {
     findGroup(board, position)
       .map(g => (removeGroup(board, g), calcScore(g)))
   }
+
+  private def board(game: Game): Board =
+    game match {
+      case InProgress(board, _) => board
+      case Finished(board, _)   => board
+    }
+
+  private def cellColor(cellState: CellState): Map[Color, Int] =
+    cellState match {
+      case Filled(c) => Map(c -> 1)
+      case Empty     => Map.empty
+    }
+
+  def predominantColor(game: Game): Option[Color] =
+    board(game).columns
+      .map(_.cells.foldMap(cellColor))
+      .combineAll
+      .toList match {
+      case Nil  => None
+      case list => list.maxBy(_._2)._1.some
+    }
+
+  def color(game: Game, position: Position): Option[Color] =
+    getCellState(board(game), position) match {
+      case Filled(c) => c.some
+      case Empty     => None
+    }
 
   def evaluateGameState(board: Board, score: Int): Game = {
     def isEmpty(board: Board): Boolean = filledCells(board) == 0

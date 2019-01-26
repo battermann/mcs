@@ -1,5 +1,6 @@
 package mcs
 
+import mcs.Interpreters.SearchState
 import mcs.Prng.Seed
 import mcs.samegame._
 import org.scalacheck.{Arbitrary, Gen}
@@ -8,7 +9,6 @@ import org.scalatest._
 import org.scalatest.prop.PropertyChecks
 
 class GameTests extends PropSpec with PropertyChecks with Matchers {
-  type ST = SearchState[samegame.Position, samegame.Game, Int, Seed]
   val game = Interpreters.gameInterpreterStateT
 
   def colEmpty(size: Int): List[CellState] = List.fill(size)(Empty)
@@ -19,7 +19,7 @@ class GameTests extends PropSpec with PropertyChecks with Matchers {
       filled    <- listOfN(numFilled, choose(0, 5).map(c => Filled(Color(c))))
     } yield filled ++ colEmpty(size - filled.length)
 
-  val searchState: Gen[SearchState[Position, samegame.Game, Int, Seed]] =
+  val searchState: Gen[SearchState[Seed]] =
     for {
       size      <- choose(4, 8)
       numFilled <- choose(0, size)
@@ -33,11 +33,11 @@ class GameTests extends PropSpec with PropertyChecks with Matchers {
         position = SameGame.evaluateGameState(Board(nonEmpty ++ empty), score),
         score = score
       )
-      SearchState(seed = Seed(seed), gameState = gameSate, bestSequence = None, bestTotal = None)
+      SearchState(seed = Seed(seed), gameState = gameSate, bestSequence = None)
     }
 
   property("simulation is terminal") {
-    forAll(searchState) { st: ST =>
+    forAll(searchState) { st =>
       Game.laws.simulationIsTerminal(game).runA(st).unsafeRunSync()
     }
   }
