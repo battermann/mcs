@@ -66,14 +66,8 @@ object Interpreters {
       def bestSequence: StateIO[Option[Result[Position, Int]]] =
         StateT.inspect(_.bestSequence)
 
-      def bestTotal: StateIO[Option[Result[Position, Int]]] =
-        StateT.inspect(_.bestTotal)
-
       def updateGameState(gameState: GameState[Position, BoardPosition, Int]): StateT[IO, SearchState[Seed], Unit] =
         StateT.modify[IO, SearchState[Seed]](_.copy(gameState = gameState))
-
-      def updateBestTotal(bestTotal: Result[Position, Int]): StateT[IO, SearchState[Seed], Unit] =
-        StateT.modify[IO, SearchState[Seed]](_.copy(bestTotal = bestTotal.some))
 
       def updateBestSequence(bestSequence: Option[Result[Position, Int]]): StateT[IO, SearchState[Seed], Unit] =
         StateT.modify[IO, SearchState[Seed]](_.copy(bestSequence = bestSequence))
@@ -129,14 +123,8 @@ object Interpreters {
         def bestSequence: IO[Option[Result[Position, Int]]] =
           ref.get.map(_.bestSequence)
 
-        def bestTotal: IO[Option[Result[Position, Int]]] =
-          ref.get.map(_.bestTotal)
-
         def updateGameState(gameState: GameState[Position, BoardPosition, Int]): IO[Unit] =
           ref.update(_.copy(gameState = gameState))
-
-        def updateBestTotal(bestTotal: Result[Position, Int]): IO[Unit] =
-          ref.update(_.copy(bestTotal = bestTotal.some))
 
         def updateBestSequence(bestSequence: Option[Result[Position, Int]]): IO[Unit] =
           ref.update(_.copy(bestSequence = bestSequence))

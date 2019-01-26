@@ -17,13 +17,11 @@ trait Game[F[_], Move, Position, Score, Seed] {
   def applyMove(move: Move): F[Unit]
   def simulation: F[Unit]
   def updateGameState(gameState: GameState[Move, Position, Score]): F[Unit]
-  def updateBestTotal(bestTotal: Result[Move, Score]): F[Unit]
   def updateBestSequence(bestSequence: Option[Result[Move, Score]]): F[Unit]
 
   def legalMoves: F[List[Move]]
   def gameState: F[GameState[Move, Position, Score]]
   def bestSequence: F[Option[Result[Move, Score]]]
-  def bestTotal: F[Option[Result[Move, Score]]]
   def isPrefixOf(gameState: GameState[Move, Position, Score])(result: Result[Move, Score]): Boolean
   def next(gameState: GameState[Move, Position, Score], result: Result[Move, Score]): Option[Move]
 }
