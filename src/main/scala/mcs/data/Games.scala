@@ -119,15 +119,13 @@ object Games {
        2197
      ).some)
 
-  private def mkGame(xss: List[List[Int]]): Game = SameGame.evaluateGameState(Board(xss.map(c => Column(c.map(s => Filled(Color(s)))))), 0)
-
-  val jsGames01: (Game, Option[Result[Position, Int]]) = (mkGame(jsGames01Raw()._1), jsGames01Raw()._2)
-  val jsGames10: (Game, Option[Result[Position, Int]]) = (mkGame(jsGames10Raw()._1), jsGames10Raw()._2)
+  val jsGames01: (Game, Option[Result[Position, Int]]) = (SameGame.apply(jsGames01Raw()._1), jsGames01Raw()._2)
+  val jsGames10: (Game, Option[Result[Position, Int]]) = (SameGame.apply(jsGames10Raw()._1), jsGames10Raw()._2)
 
   val game1: (Game, Option[Result[Position, Int]]) = (SameGame.apply(board15x15), None)
 
   def board(size: Int): (Game, Option[Result[Position, Int]]) =
-    (SameGame.apply(board15x15.take(size)), None)
+    (SameGame.apply(board15x15.take(size).map(_.take(size))), None)
 
   def board15x15: List[List[Int]] =
     List(

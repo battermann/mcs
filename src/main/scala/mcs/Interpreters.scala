@@ -57,7 +57,7 @@ object Interpreters {
           }
         } yield isTerminalPosition
 
-        playRndLegalMove.iterateUntil(isTerminalPosition => isTerminalPosition).void
+        playRndLegalMove.iterateUntil(identity).void
       }
 
       def gameState: StateIO[GameState[Position, BoardPosition, Int]] =
@@ -88,8 +88,6 @@ object Interpreters {
           None
         }
     }
-  
-  
 
   def gameInterpreterIORef(initial: SearchState[Unit]): IO[Game[IO, Move, BoardPosition, Int, Unit]] =
     for {
@@ -122,7 +120,7 @@ object Interpreters {
             }
           } yield isTerminalPosition
 
-          playRndLegalMove.iterateUntil(isTerminalPosition => isTerminalPosition).void
+          playRndLegalMove.iterateUntil(identity).void
         }
 
         def gameState: IO[GameState[Position, BoardPosition, Int]] =
@@ -155,7 +153,7 @@ object Interpreters {
 
       }
 
-  def loggerState(): Logger[StateIO] =
+  def loggerState: Logger[StateIO] =
     new Logger[StateIO] {
       def log[T: Show](t: T): StateT[IO, SearchState[Seed], Unit] =
         StateT[IO, SearchState[Seed], Unit](s => IO(println(t.show)).map((s, _)))
