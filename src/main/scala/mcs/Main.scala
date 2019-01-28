@@ -24,7 +24,9 @@ object Main extends IOApp {
   private def startSearch(level: Int): IO[Unit] = {
     for {
       cores <- IO(Runtime.getRuntime.availableProcessors())
-      seeds <- List.fill(cores - 2)(IO(scala.util.Random.nextLong())).sequence
+      _     <- IO(println(s"Available processors: $cores"))
+      _     <- IO(println(s"Nesting level: $level"))
+      seeds <- List.fill(cores)(IO(scala.util.Random.nextLong())).sequence
       ref   <- Ref.of[IO, Option[Result[Move, Int]]](None)
       results <- seeds
         .map(Seed)
