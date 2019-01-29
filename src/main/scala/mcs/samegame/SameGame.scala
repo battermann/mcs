@@ -120,6 +120,13 @@ object SameGame {
       case Empty     => Map.empty
     }
 
+  def colors(game: Game): List[Color] =
+    board(game).columns
+      .map(_.cells.foldMap(cellColor))
+      .combineAll
+      .keys
+      .toList
+
   def predominantColor(game: Game): Option[Color] =
     board(game).columns
       .map(_.cells.foldMap(cellColor))
