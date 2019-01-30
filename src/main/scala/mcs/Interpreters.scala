@@ -1,11 +1,8 @@
 package mcs
 
 import cats.{Eq, Show}
-import cats.data.StateT
 import cats.effect.IO
-import cats.effect.concurrent.Ref
 import cats.implicits._
-import mcs.Prng.Seed
 import mcs.samegame._
 import mcs.util.ListUtils
 
@@ -14,169 +11,50 @@ object Interpreters {
   type Move          = samegame.Position
   type BoardPosition = samegame.Game
 
-  final case class SearchState[S](
-      seed: S,
-      gameState: GameState[Move, BoardPosition, Int],
-      bestSequence: Option[Result[Move, Int]],
-  )
-
-  type StateIO[A] = StateT[IO, SearchState[Seed], A]
-
-  val gameInterpreterStateT: Game[StateIO, Move, BoardPosition, Int] =
-    new Game[StateIO, Move, BoardPosition, Int] {
-
-      def applyMove(move: Move): StateIO[Unit] =
-        StateT.modify[IO, SearchState[Seed]] { searchState =>
-          val nextPosition = SameGame.applyMove(move, searchState.gameState.position)
-          val gameState = searchState.gameState.copy(
-            position = nextPosition,
-            score = SameGame.score(nextPosition),
-            playedMoves = move :: searchState.gameState.playedMoves
-          )
-          searchState.copy(gameState = gameState)
-        }
-
-      def legalMoves: StateIO[List[Move]] =
-        StateT.inspect[IO, SearchState[Seed], List[Move]] { searchState =>
-          SameGame.legalMoves(searchState.gameState.position)
-        }
-
-      private def rndInt(bound: Int): StateIO[Int] = StateT[IO, SearchState[Seed], Int] { searchState =>
-        val (nextSeed, i) = searchState.seed.nextInt(bound)
-        IO { (searchState.copy(seed = nextSeed), i) }
-      }
-
-      def simulation: StateIO[Unit] = tabuColorPredominat
-
-//      private def rndSimulation: StateIO[Unit] = {
-//        val playRndLegalMove = for {
-//          moves <- legalMoves
-//          isTerminalPosition <- moves match {
-//            case Nil => StateT.pure[IO, SearchState[Seed], Boolean](true)
-//            case ms  => rndInt(ms.length).flatMap(i => applyMove(ms(i))).as(false)
-//          }
-//        } yield isTerminalPosition
-//
-//        playRndLegalMove.iterateUntil(identity).void
-//      }
-
-      private def tabuColorPredominat: StateIO[Unit] =
-        gameState.flatMap(gs => tabuColor(SameGame.predominantColor(gs.position)))
-
-//      private def tabuColorRandom: StateIO[Unit] =
-//        for {
-//          gs <- gameState
-//          colors = SameGame.colors(gs.position)
-//          rndColor <- if (colors.nonEmpty) {
-//            rndInt(colors.length).map(i => colors(i).some)
-//          } else {
-//            StateT.pure[IO, SearchState[Seed], Option[Color]](None)
-//          }
-//          result <- tabuColor(rndColor)
-//        } yield result
-
-      private def tabuColor(tabuColor: Option[Color]): StateIO[Unit] = {
-        val playRndLegalMove = for {
-          moves <- legalMoves
-          gs    <- gameState
-          isTerminalPosition <- moves.partition(m => SameGame.color(gs.position, m) == tabuColor) match {
-            case (Nil, Nil)       => StateT.pure[IO, SearchState[Seed], Boolean](true)
-            case (tabuMoves, Nil) => rndInt(tabuMoves.length).flatMap(i => applyMove(tabuMoves(i))).as(false)
-            case (_, ms)          => rndInt(ms.length).flatMap(i => applyMove(ms(i))).as(false)
-          }
-        } yield isTerminalPosition
-
-        playRndLegalMove.iterateUntil(identity).void
-      }
-
-      def gameState: StateIO[GameState[Position, BoardPosition, Int]] =
-        StateT.inspect(_.gameState)
-
-      def bestSequence: StateIO[Option[Result[Position, Int]]] =
-        StateT.inspect(_.bestSequence)
-
-      def updateGameState(gameState: GameState[Position, BoardPosition, Int]): StateT[IO, SearchState[Seed], Unit] =
-        StateT.modify[IO, SearchState[Seed]](_.copy(gameState = gameState))
-
-      def updateBestSequence(bestSequence: Result[Position, Int]): StateT[IO, SearchState[Seed], Unit] =
-        StateT.modify[IO, SearchState[Seed]](_.copy(bestSequence = bestSequence.some))
-
-      def isPrefixOf(gameState: GameState[Position, BoardPosition, Int])(result: Result[Position, Int]): Boolean =
-        ListUtils.isSuffixOf(gameState.playedMoves, result.moves)(Eq.fromUniversalEquals)
-
-      def next(gameState: GameState[Position, BoardPosition, Int], result: Result[Position, Int]): Option[Position] =
-        if (isPrefixOf(gameState)(result) && gameState.playedMoves.length < result.moves.length) {
-          result.moves(result.moves.length - 1 - gameState.playedMoves.length).some
-        } else {
-          None
-        }
+  implicit val game: Game[IO, Move, BoardPosition, Int] = new Game[IO, Move, BoardPosition, Int] {
+    def applyMove(gameState: GameState[Move, BoardPosition, Int], move: Move): GameState[Move, BoardPosition, Int] = {
+      val gs = samegame.SameGame.applyMove(move, gameState.position)
+      GameState(move :: gameState.playedMoves, samegame.SameGame.score(gs), gs)
     }
 
-  def gameInterpreterIORef(initial: SearchState[Unit]): IO[Game[IO, Move, BoardPosition, Int]] =
-    for {
-      ref <- Ref.of[IO, SearchState[Unit]](initial)
-    } yield
-      new Game[IO, Move, BoardPosition, Int] {
-        def applyMove(move: Move): IO[Unit] =
-          ref.update { searchState =>
-            val nextPosition = SameGame.applyMove(move, searchState.gameState.position)
-            val gameState = searchState.gameState.copy(
-              position = nextPosition,
-              score = SameGame.score(nextPosition),
-              playedMoves = move :: searchState.gameState.playedMoves
-            )
-            searchState.copy(gameState = gameState)
-          }
+    def legalMoves(gameState: GameState[Move, BoardPosition, Int]): List[Move] =
+      samegame.SameGame.legalMoves(gameState.position)
 
-        def legalMoves: IO[List[Move]] =
-          ref.get.map(searchState => SameGame.legalMoves(searchState.gameState.position))
-
-        private def rndInt(bound: Int): IO[Int] =
-          IO(scala.util.Random.nextInt(bound))
-
-        def simulation: IO[Unit] = {
-          val playRndLegalMove = for {
-            moves <- legalMoves
-            isTerminalPosition <- moves match {
-              case Nil => true.pure[IO]
-              case ms  => rndInt(ms.length).flatMap(i => applyMove(ms(i))).as(false)
-            }
-          } yield isTerminalPosition
-
-          playRndLegalMove.iterateUntil(identity).void
-        }
-
-        def gameState: IO[GameState[Position, BoardPosition, Int]] =
-          ref.get.map(_.gameState)
-
-        def bestSequence: IO[Option[Result[Position, Int]]] =
-          ref.get.map(_.bestSequence)
-
-        def updateGameState(gameState: GameState[Position, BoardPosition, Int]): IO[Unit] =
-          ref.update(_.copy(gameState = gameState))
-
-        def updateBestSequence(bestSequence: Result[Position, Int]): IO[Unit] =
-          ref.update(_.copy(bestSequence = bestSequence.some))
-
-        def isPrefixOf(gameState: GameState[Position, BoardPosition, Int])(result: Result[Position, Int]): Boolean =
-          ListUtils.isSuffixOf(gameState.playedMoves, result.moves)(Eq.fromUniversalEquals)
-
-        def next(gameState: GameState[Position, BoardPosition, Int], result: Result[Position, Int]): Option[Position] =
-          if (isPrefixOf(gameState)(result) && gameState.playedMoves.length < result.moves.length) {
-            result.moves(result.moves.length - 1 - gameState.playedMoves.length).some
-          } else {
-            None
-          }
-
+    def simulation(gameState: GameState[Move, BoardPosition, Int]): IO[GameState[Move, BoardPosition, Int]] = {
+      val tabuColor = samegame.SameGame.predominantColor(gameState.position)
+      val moves     = legalMoves(gameState)
+      moves.partition(m => samegame.SameGame.color(gameState.position, m) == tabuColor) match {
+        case (Nil, Nil) => IO.pure(gameState)
+        case (tabuMoves, Nil) =>
+          IO(scala.util.Random.nextInt(tabuMoves.length))
+            .map(i => applyMove(gameState, tabuMoves(i)))
+            .flatMap(gs => simulation(gs))
+        case (_, ms) =>
+          IO(scala.util.Random.nextInt(ms.length))
+            .map(i => applyMove(gameState, ms(i)))
+            .flatMap(gs => simulation(gs))
       }
-
-  def loggerState: Logger[StateIO] =
-    new Logger[StateIO] {
-      def log[T: Show](t: T): StateT[IO, SearchState[Seed], Unit] =
-        StateT[IO, SearchState[Seed], Unit](s => IO(println(t.show)).map((s, _)))
+      if (moves.isEmpty) {
+        IO.pure(gameState)
+      } else {
+        IO(scala.util.Random.nextInt(moves.length))
+          .map(i => applyMove(gameState, moves(i)))
+          .flatMap(gs => simulation(gs))
+      }
     }
 
-  val loggerIO: Logger[IO] = new Logger[IO] {
+    def isPrefixOf: List[Move] => List[Move] => Boolean = currentPath => bestPath => ListUtils.isSuffixOf(currentPath, bestPath)(Eq.fromUniversalEquals)
+
+    def next(currentPath: List[Move], bestPath: List[Move]): Option[Move] = {
+      if (isPrefixOf(currentPath)(bestPath) && currentPath.length < bestPath.length) {
+        bestPath(bestPath.length - 1 - currentPath.length).some
+      } else {
+        None
+      }
+    }
+  }
+
+  implicit val loggerIO: Logger[IO] = new Logger[IO] {
     def log[T: Show](t: T): IO[Unit] = IO(println(t.show))
   }
 

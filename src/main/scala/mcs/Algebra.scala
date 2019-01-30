@@ -2,28 +2,23 @@ package mcs
 
 import cats.Show
 
+final case class Result[M, S](
+  moves: List[M],
+  score: S
+)
+
 final case class GameState[Move, Position, Score](
     playedMoves: List[Move],
     score: Score,
     position: Position,
 )
 
-final case class Result[Move, Score](
-    moves: List[Move],
-    score: Score
-)
-
 trait Game[F[_], Move, Position, Score] {
-  def applyMove(move: Move): F[Unit]
-  def simulation: F[Unit]
-  def updateGameState(gameState: GameState[Move, Position, Score]): F[Unit]
-  def updateBestSequence(bestSequence: Result[Move, Score]): F[Unit]
-
-  def legalMoves: F[List[Move]]
-  def gameState: F[GameState[Move, Position, Score]]
-  def bestSequence: F[Option[Result[Move, Score]]]
-  def isPrefixOf(gameState: GameState[Move, Position, Score])(result: Result[Move, Score]): Boolean
-  def next(gameState: GameState[Move, Position, Score], result: Result[Move, Score]): Option[Move]
+  def applyMove(gameState: GameState[Move, Position, Score], move: Move): GameState[Move, Position, Score]
+  def legalMoves(gameState: GameState[Move, Position, Score]): List[Move]
+  def simulation(gameState: GameState[Move, Position, Score]): F[GameState[Move, Position, Score]]
+  def isPrefixOf: List[Move] => List[Move] => Boolean
+  def next(currentPath: List[Move], bestPath: List[Move]): Option[Move]
 }
 
 object Game {
@@ -31,18 +26,16 @@ object Game {
     import cats.Monad
     import cats.implicits._
 
-    def simulationIsTerminal[F[_]: Monad, Move, BoardPosition, Score]()(implicit ev: Game[F, Move, BoardPosition, Score]): F[Boolean] =
-      ev.simulation *> ev.legalMoves map (_.isEmpty)
+    def simulationIsTerminal[F[_]: Monad, Move, Position, Score](gameState: GameState[Move, Position, Score])(
+        implicit ev: Game[F, Move, Position, Score]): F[Boolean] =
+      ev.simulation(gameState).map(ev.legalMoves).map(_.isEmpty)
 
-    def legalMoveModifiesGameState[F[_]: Monad, Move, BoardPosition, Score](m: Move)(implicit ev: Game[F, Move, BoardPosition, Score]): F[Boolean] =
-      for {
-        gameState <- ev.gameState
-        moves     <- ev.legalMoves
-        result <- if (!moves.contains(m))
-          Monad[F].pure(true)
-        else
-          ev.applyMove(m) *> ev.gameState.map(gs => (gs.position != gameState.position) && (gs.playedMoves.length == gameState.playedMoves.length + 1))
-      } yield result
+    def legalMoveModifiesGameState[F[_]: Monad, Move, Position, Score](gameState: GameState[Move, Position, Score], move: Move)(
+        implicit ev: Game[F, Move, Position, Score]): Boolean = {
+      val legalMoves    = ev.legalMoves(gameState)
+      val nextGameState = ev.applyMove(gameState, move)
+      !legalMoves.contains(move) || (nextGameState.position != gameState.position && nextGameState.playedMoves.length == gameState.playedMoves.length + 1)
+    }
   }
 }
 
