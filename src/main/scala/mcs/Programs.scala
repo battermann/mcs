@@ -34,16 +34,22 @@ object Programs {
         }
     }
 
-    bestTotal.get
-      .flatMap {
+    bestTotal
+      .modify {
         case None =>
           val betterSequence = Result(simResult.playedMoves, simResult.score)
-          bestTotal.set(betterSequence.some) *> Logger[F].log(betterSequence)
-        case Some(best) if ord.gt(simResult.score, best.score) =>
-          val betterSequence = Result(simResult.playedMoves, simResult.score)
-          bestTotal.set(betterSequence.some) *> Logger[F].log(betterSequence)
-        case _ =>
-          Monad[F].pure(())
+          (betterSequence.some, betterSequence.some)
+        case Some(best) =>
+          if (ord.gt(simResult.score, best.score)) {
+            val betterSequence = Result(simResult.playedMoves, simResult.score)
+            (betterSequence.some, betterSequence.some)
+          } else {
+            (best.some, None)
+          }
+      }
+      .flatMap {
+        case None         => Monad[F].pure(())
+        case Some(better) => Logger[F].log(better)
       }
       .as(nextSearchState)
   }
