@@ -71,7 +71,7 @@ object Programs {
       } else {
         if (level == 1) {
           legalMoves
-            .traverse { move =>
+            .parTraverse { move =>
               val nextState        = game.applyMove(searchState.gameState, move)
               val simulationResult = game.simulation(nextState)
               simulationResult.map((_, nextState))

@@ -9,10 +9,11 @@ import mcs.samegame.SameGame
 import scala.util.Try
 
 object Main extends IOApp {
-  private val es                                                 = java.util.concurrent.Executors.newCachedThreadPool()
+  private val es = java.util.concurrent.Executors.newWorkStealingPool(Runtime.getRuntime.availableProcessors())
+
   override protected implicit def contextShift: ContextShift[IO] = IO.contextShift(scala.concurrent.ExecutionContext.fromExecutor(es))
 
-  private val (position, b) = data.Games.jsGames10
+  private val (position, _) = data.Games.jsGames10
   private val score         = SameGame.score(position)
   private val gameState     = GameState(playedMoves = List.empty[Move], score = score, position = position)
 
@@ -22,7 +23,7 @@ object Main extends IOApp {
       _     <- IO(println(s"Available processors: $cores"))
       _     <- IO(println(s"Nesting level: $level"))
       ref   <- Ref.of[IO, Option[Result[Move, Int]]](None)
-      _     <- Programs.nestedMonteCarlo[IO, IO.Par, Move, BoardPosition, Int](SearchState(gameState, b), ref, level)
+      _     <- Programs.nestedMonteCarlo[IO, IO.Par, Move, BoardPosition, Int](SearchState(gameState, None), ref, level)
       _     <- IO(es.shutdown())
     } yield ()
   }

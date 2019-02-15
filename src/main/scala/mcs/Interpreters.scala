@@ -34,13 +34,6 @@ object Interpreters {
             .map(i => applyMove(gameState, ms(i)))
             .flatMap(gs => simulation(gs))
       }
-      if (moves.isEmpty) {
-        IO.pure(gameState)
-      } else {
-        IO(scala.util.Random.nextInt(moves.length))
-          .map(i => applyMove(gameState, moves(i)))
-          .flatMap(gs => simulation(gs))
-      }
     }
 
     def isPrefixOf: List[Move] => List[Move] => Boolean = currentPath => bestPath => ListUtils.isSuffixOf(currentPath, bestPath)(Eq.fromUniversalEquals)
