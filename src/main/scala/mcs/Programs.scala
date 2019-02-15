@@ -54,6 +54,23 @@ object Programs {
       .as(nextSearchState)
   }
 
+  private def foo[F[_]: Monad: Logger, G[_], Move: Eq, Position, Score](searchState: SearchState[Move, Position, Score],
+                                                                        bestTotal: Ref[F, Option[Result[Move, Score]]],
+                                                                        numLevels: Int,
+                                                                        level: Int)(move: Move)(
+      implicit game: Game[F, Move, Position, Score],
+      par: Parallel[F, G],
+      ord: Ordering[Score],
+      showGameState: Show[GameState[Move, Position, Score]],
+      showResult: Show[Result[Move, Score]]): F[(GameState[Move, Position, Score], GameState[Move, Position, Score])] = {
+    val nextState    = game.applyMove(searchState.gameState, move)
+    val bestSequence = searchState.bestSequence.filter(x => game.isPrefixOf(nextState.playedMoves)(x.moves))
+    val simulationResult =
+      nestedSearch[F, G, Move, Position, Score](SearchState(nextState, bestSequence), bestTotal, numLevels, level - 1)
+        .map(_.gameState)
+    simulationResult.map((_, nextState))
+  }
+
   private def nestedSearch[F[_]: Monad: Logger, G[_], Move: Eq, Position, Score](searchState: SearchState[Move, Position, Score],
                                                                                  bestTotal: Ref[F, Option[Result[Move, Score]]],
                                                                                  numLevels: Int,
@@ -69,52 +86,28 @@ object Programs {
       result <- if (legalMoves.isEmpty) {
         Monad[F].pure(searchState)
       } else {
-        if (level == 1) {
+        val results = if (level == 1) {
           legalMoves
             .parTraverse { move =>
               val nextState        = game.applyMove(searchState.gameState, move)
               val simulationResult = game.simulation(nextState)
               simulationResult.map((_, nextState))
             }
-            .map(_.maxBy(_._1.score))
-            .flatMap {
-              case (simulationResult, nextState) =>
-                chooseNextMove[F, Move, Position, Score](bestTotal, searchState.gameState, nextState, searchState.bestSequence, simulationResult)
-            }
-            .flatMap(st => nestedSearch[F, G, Move, Position, Score](st, bestTotal, numLevels, level))
-        } else if (level == 2) {
-          legalMoves
-            .parTraverse { move =>
-              val nextState    = game.applyMove(searchState.gameState, move)
-              val bestSequence = searchState.bestSequence.filter(x => game.isPrefixOf(nextState.playedMoves)(x.moves))
-              val simulationResult =
-                nestedSearch[F, G, Move, Position, Score](SearchState(nextState, bestSequence), bestTotal, numLevels, 1)
-                  .map(_.gameState)
-              simulationResult.map((_, nextState))
-            }
-            .map(_.maxBy(_._1.score))
-            .flatMap {
-              case (simulationResult, nextState) =>
-                chooseNextMove[F, Move, Position, Score](bestTotal, searchState.gameState, nextState, searchState.bestSequence, simulationResult)
-            }
-            .flatMap(st => nestedSearch[F, G, Move, Position, Score](st, bestTotal, numLevels, level))
         } else {
-          legalMoves
-            .traverse { move =>
-              val nextState    = game.applyMove(searchState.gameState, move)
-              val bestSequence = searchState.bestSequence.filter(x => game.isPrefixOf(nextState.playedMoves)(x.moves))
-              val simulationResult =
-                nestedSearch[F, G, Move, Position, Score](SearchState(nextState, bestSequence), bestTotal, numLevels, level - 1)
-                  .map(_.gameState)
-              simulationResult.map((_, nextState))
-            }
-            .map(_.maxBy(_._1.score))
-            .flatMap {
-              case (simulationResult, nextState) =>
-                chooseNextMove[F, Move, Position, Score](bestTotal, searchState.gameState, nextState, searchState.bestSequence, simulationResult)
-            }
-            .flatMap(st => nestedSearch[F, G, Move, Position, Score](st, bestTotal, numLevels, level))
+          if (level == 2) {
+            legalMoves
+              .parTraverse(foo(searchState, bestTotal, numLevels, level)(_))
+          } else {
+            legalMoves
+              .traverse(foo(searchState, bestTotal, numLevels, level)(_))
+          }
         }
+        results.map(_.maxBy(_._1.score))
+          .flatMap {
+            case (simulationResult, nextState) =>
+              chooseNextMove[F, Move, Position, Score](bestTotal, searchState.gameState, nextState, searchState.bestSequence, simulationResult)
+          }
+          .flatMap(st => nestedSearch[F, G, Move, Position, Score](st, bestTotal, numLevels, level))
       }
     } yield result
   }
