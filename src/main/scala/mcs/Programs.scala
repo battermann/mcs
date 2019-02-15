@@ -87,12 +87,19 @@ object Programs {
         Monad[F].pure(searchState)
       } else {
         val results = if (level == 1) {
-          legalMoves
-            .parTraverse { move =>
-              val nextState        = game.applyMove(searchState.gameState, move)
-              val simulationResult = game.simulation(nextState)
-              simulationResult.map((_, nextState))
-            }
+          if (numLevels == 1)
+            legalMoves
+              .parTraverse { move =>
+                val nextState        = game.applyMove(searchState.gameState, move)
+                val simulationResult = game.simulation(nextState)
+                simulationResult.map((_, nextState))
+              } else
+            legalMoves
+              .traverse { move =>
+                val nextState        = game.applyMove(searchState.gameState, move)
+                val simulationResult = game.simulation(nextState)
+                simulationResult.map((_, nextState))
+              }
         } else {
           if (level == 2) {
             legalMoves
@@ -102,7 +109,8 @@ object Programs {
               .traverse(foo(searchState, bestTotal, numLevels, level)(_))
           }
         }
-        results.map(_.maxBy(_._1.score))
+        results
+          .map(_.maxBy(_._1.score))
           .flatMap {
             case (simulationResult, nextState) =>
               chooseNextMove[F, Move, Position, Score](bestTotal, searchState.gameState, nextState, searchState.bestSequence, simulationResult)
