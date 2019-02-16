@@ -54,10 +54,10 @@ object Programs {
       .as(nextSearchState)
   }
 
-  private def foo[F[_]: Monad: Logger, G[_], Move: Eq, Position, Score](searchState: SearchState[Move, Position, Score],
-                                                                        bestTotal: Ref[F, Option[Result[Move, Score]]],
-                                                                        numLevels: Int,
-                                                                        level: Int)(move: Move)(
+  private def nestedSearch[F[_]: Monad: Logger, G[_], Move: Eq, Position, Score](searchState: SearchState[Move, Position, Score],
+                                                                                 bestTotal: Ref[F, Option[Result[Move, Score]]],
+                                                                                 numLevels: Int,
+                                                                                 level: Int)(move: Move)(
       implicit game: Game[F, Move, Position, Score],
       par: Parallel[F, G],
       ord: Ordering[Score],
@@ -66,15 +66,15 @@ object Programs {
     val nextState    = game.applyMove(searchState.gameState, move)
     val bestSequence = searchState.bestSequence.filter(x => game.isPrefixOf(nextState.playedMoves)(x.moves))
     val simulationResult =
-      nestedSearch[F, G, Move, Position, Score](SearchState(nextState, bestSequence), bestTotal, numLevels, level - 1)
+      search[F, G, Move, Position, Score](SearchState(nextState, bestSequence), bestTotal, numLevels, level - 1)
         .map(_.gameState)
     simulationResult.map((_, nextState))
   }
 
-  private def nestedSearch[F[_]: Monad: Logger, G[_], Move: Eq, Position, Score](searchState: SearchState[Move, Position, Score],
-                                                                                 bestTotal: Ref[F, Option[Result[Move, Score]]],
-                                                                                 numLevels: Int,
-                                                                                 level: Int)(
+  private def search[F[_]: Monad: Logger, G[_], Move: Eq, Position, Score](searchState: SearchState[Move, Position, Score],
+                                                                           bestTotal: Ref[F, Option[Result[Move, Score]]],
+                                                                           numLevels: Int,
+                                                                           level: Int)(
       implicit game: Game[F, Move, Position, Score],
       par: Parallel[F, G],
       ord: Ordering[Score],
@@ -90,23 +90,21 @@ object Programs {
           if (numLevels == 1)
             legalMoves
               .parTraverse { move =>
-                val nextState        = game.applyMove(searchState.gameState, move)
-                val simulationResult = game.simulation(nextState)
-                simulationResult.map((_, nextState))
+                val nextState = game.applyMove(searchState.gameState, move)
+                game.simulation(nextState).map((_, nextState))
               } else
             legalMoves
               .traverse { move =>
-                val nextState        = game.applyMove(searchState.gameState, move)
-                val simulationResult = game.simulation(nextState)
-                simulationResult.map((_, nextState))
+                val nextState = game.applyMove(searchState.gameState, move)
+                game.simulation(nextState).map((_, nextState))
               }
         } else {
           if (level == 2) {
             legalMoves
-              .parTraverse(foo(searchState, bestTotal, numLevels, level)(_))
+              .parTraverse(nestedSearch(searchState, bestTotal, numLevels, level)(_))
           } else {
             legalMoves
-              .traverse(foo(searchState, bestTotal, numLevels, level)(_))
+              .traverse(nestedSearch(searchState, bestTotal, numLevels, level)(_))
           }
         }
         results
@@ -115,18 +113,18 @@ object Programs {
             case (simulationResult, nextState) =>
               chooseNextMove[F, Move, Position, Score](bestTotal, searchState.gameState, nextState, searchState.bestSequence, simulationResult)
           }
-          .flatMap(st => nestedSearch[F, G, Move, Position, Score](st, bestTotal, numLevels, level))
+          .flatMap(st => search[F, G, Move, Position, Score](st, bestTotal, numLevels, level))
       }
     } yield result
   }
 
-  def nestedMonteCarlo[F[_]: Monad: Logger, G[_], Move: Eq, Position, Score](searchState: SearchState[Move, Position, Score],
-                                                                             bestTotal: Ref[F, Option[Result[Move, Score]]],
-                                                                             level: Int)(
+  def nestedMonteCarloTreeSearch[F[_]: Monad: Logger, G[_], Move: Eq, Position, Score](searchState: SearchState[Move, Position, Score],
+                                                                                       bestTotal: Ref[F, Option[Result[Move, Score]]],
+                                                                                       level: Int)(
       implicit game: Game[F, Move, Position, Score],
       par: Parallel[F, G],
       ord: Ordering[Score],
       showGameState: Show[GameState[Move, Position, Score]],
       showResult: Show[Result[Move, Score]]): F[SearchState[Move, Position, Score]] =
-    nestedSearch[F, G, Move, Position, Score](searchState, bestTotal, level, level)
+    search[F, G, Move, Position, Score](searchState, bestTotal, level, level)
 }

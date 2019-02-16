@@ -2,7 +2,7 @@ package mcs.data
 
 import mcs.samegame._
 import cats.implicits._
-import mcs.Result
+import mcs.{GameState, Interpreters, Result}
 
 object Games {
   private def jsGames01Raw(): (List[List[Int]], Option[Result[Position, Int]]) =
@@ -111,6 +111,20 @@ object Games {
 
   val jsGames01: (Game, Option[Result[Position, Int]]) = (SameGame.apply(jsGames01Raw()._1), jsGames01Raw()._2)
   val jsGames10: (Game, Option[Result[Position, Int]]) = (SameGame.apply(jsGames10Raw()._1), jsGames10Raw()._2)
+
+  val foo: GameState[Position, Game, Int] = {
+    val (position, b) = Games.jsGames10
+    val score         = SameGame.score(position)
+    val gameState     = mcs.GameState(playedMoves = List.empty[Position], score = score, position = position)
+
+    val result = b.map { x =>
+      x.moves.drop(20).foldRight(gameState) {
+        case (m, state) =>
+          Interpreters.game.applyMove(state, m)
+      }
+    }
+    result.get
+  }
 
   val game1: (Game, Option[Result[Position, Int]]) = (SameGame.apply(board15x15), None)
 

@@ -13,21 +13,22 @@ object Main extends IOApp {
 
   override protected implicit def contextShift: ContextShift[IO] = IO.contextShift(scala.concurrent.ExecutionContext.fromExecutor(es))
 
-  private val (position, _) = data.Games.jsGames10
-  private val score         = SameGame.score(position)
-  private val gameState     = GameState(playedMoves = List.empty[Move], score = score, position = position)
+  private val (position, best) = data.Games.jsGames10
+  private val score            = SameGame.score(position)
+  private val gameState        = GameState(playedMoves = List.empty[Move], score = score, position = position)
 
-  private def startSearch(level: Int): IO[Unit] = {
+  private def startSearch(level: Int, best: Option[Result[samegame.Position, Int]]): IO[Unit] = {
     for {
       cores <- IO(Runtime.getRuntime.availableProcessors())
       _     <- IO(println(s"Available processors: $cores"))
       _     <- IO(println(s"Nesting level: $level"))
       ref   <- Ref.of[IO, Option[Result[Move, Int]]](None)
-      _     <- Programs.nestedMonteCarlo[IO, IO.Par, Move, BoardPosition, Int](SearchState(gameState, None), ref, level)
+      _     <- Programs.nestedMonteCarloTreeSearch[IO, IO.Par, Move, BoardPosition, Int](SearchState(gameState, best), ref, level)
       _     <- IO(es.shutdown())
     } yield ()
   }
 
   def run(args: List[String]): IO[ExitCode] =
-    startSearch(args.headOption.flatMap(arg => Try(arg.toInt).toOption).getOrElse(1)).as(ExitCode.Success)
+    startSearch(args.headOption.flatMap(arg => Try(arg.toInt).toOption).getOrElse(1), args.drop(1).headOption.filter(_ == "best").flatMap(_ => best))
+      .as(ExitCode.Success)
 }
