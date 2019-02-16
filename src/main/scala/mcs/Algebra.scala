@@ -2,9 +2,9 @@ package mcs
 
 import cats.Show
 
-final case class Result[M, S](
-  moves: List[M],
-  score: S
+final case class Result[Move, Score](
+  moves: List[Move],
+  score: Score
 )
 
 final case class GameState[Move, Position, Score](
