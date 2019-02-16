@@ -48,7 +48,7 @@ object Programs {
           }
       }
       .flatMap {
-        case None         => Monad[F].pure(())
+        case None         => ().pure[F]
         case Some(better) => Logger[F].log(better)
       }
       .as(nextSearchState)
@@ -82,9 +82,9 @@ object Programs {
       showResult: Show[Result[Move, Score]]): F[SearchState[Move, Position, Score]] = {
     val legalMoves = game.legalMoves(searchState.gameState)
     for {
-      _ <- if (level == numLevels) Logger[F].log(searchState.gameState) else Monad[F].pure(())
+      _ <- if (level == numLevels) Logger[F].log(searchState.gameState) else ().pure[F]
       result <- if (legalMoves.isEmpty) {
-        Monad[F].pure(searchState)
+        searchState.pure[F]
       } else {
         val results = if (level == 1) {
           if (numLevels == 1)
