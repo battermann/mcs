@@ -6,6 +6,7 @@ enablePlugins(JavaAppPackaging)
 
 libraryDependencies ++= Seq(
   "org.typelevel"  %% "cats-effect" % "1.1.0",
+  "org.scalanlp"   %% "breeze"      % "1.0-RC2",
   "org.scalatest"  %% "scalatest"   % "3.0.5" % "test",
   "org.scalacheck" %% "scalacheck"  % "1.14.0" % "test"
 )
