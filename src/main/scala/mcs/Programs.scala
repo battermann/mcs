@@ -99,11 +99,9 @@ object Programs {
                 game.simulation(nextState).map((_, nextState))
               }
         } else if (level == 2) {
-          legalMoves
-            .parTraverse(nestedSearch(searchState, bestTotal, numLevels, level)(_))
+          legalMoves.parTraverse(nestedSearch(searchState, bestTotal, numLevels, level)(_))
         } else {
-          legalMoves
-            .traverse(nestedSearch(searchState, bestTotal, numLevels, level)(_))
+          legalMoves.traverse(nestedSearch(searchState, bestTotal, numLevels, level)(_))
         }
         results
           .map(_.maxBy(_._1.score))
@@ -111,7 +109,7 @@ object Programs {
             case (simulationResult, nextState) =>
               chooseNextMove[F, Move, Position, Score](bestTotal, searchState.gameState, nextState, searchState.bestSequence, simulationResult)
           }
-          .flatMap(st => search[F, G, Move, Position, Score](st, bestTotal, numLevels, level))
+          .flatMap(search[F, G, Move, Position, Score](_, bestTotal, numLevels, level))
       }
     } yield result
   }
