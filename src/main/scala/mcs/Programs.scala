@@ -98,14 +98,12 @@ object Programs {
                 val nextState = game.applyMove(searchState.gameState, move)
                 game.simulation(nextState).map((_, nextState))
               }
+        } else if (level == 2) {
+          legalMoves
+            .parTraverse(nestedSearch(searchState, bestTotal, numLevels, level)(_))
         } else {
-          if (level == 2) {
-            legalMoves
-              .parTraverse(nestedSearch(searchState, bestTotal, numLevels, level)(_))
-          } else {
-            legalMoves
-              .traverse(nestedSearch(searchState, bestTotal, numLevels, level)(_))
-          }
+          legalMoves
+            .traverse(nestedSearch(searchState, bestTotal, numLevels, level)(_))
         }
         results
           .map(_.maxBy(_._1.score))
