@@ -11,7 +11,7 @@ object Programs {
       bestSequence: Option[Result[Move, Score]],
   )
 
-  def chooseNextMove[F[_]: Monad: Logger, Move, Position, Score](bestTotal: Ref[F, Option[Result[Move, Score]]],
+  private def chooseNextMove[F[_]: Monad: Logger, Move, Position, Score](bestTotal: Ref[F, Option[Result[Move, Score]]],
                                                                  currentState: GameState[Move, Position, Score],
                                                                  nextState: GameState[Move, Position, Score],
                                                                  currentBestSequence: Option[Result[Move, Score]],
