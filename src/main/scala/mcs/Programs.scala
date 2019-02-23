@@ -86,22 +86,23 @@ object Programs {
       result <- if (legalMoves.isEmpty) {
         searchState.pure[F]
       } else {
-        val results = if (level == 1) {
-          if (numLevels == 1)
+        val results = (numLevels, level) match {
+          case (1, _) =>
             legalMoves
               .parTraverse { move =>
                 val nextState = game.applyMove(searchState.gameState, move)
                 game.simulation(nextState).map((_, nextState))
-              } else
+              }
+          case (_, 1) =>
             legalMoves
               .traverse { move =>
                 val nextState = game.applyMove(searchState.gameState, move)
                 game.simulation(nextState).map((_, nextState))
               }
-        } else if (level == 2) {
-          legalMoves.parTraverse(nestedSearch(searchState, bestTotal, numLevels, level)(_))
-        } else {
-          legalMoves.traverse(nestedSearch(searchState, bestTotal, numLevels, level)(_))
+          case (_, 2) =>
+            legalMoves.parTraverse(nestedSearch(searchState, bestTotal, numLevels, level)(_))
+          case _ =>
+            legalMoves.traverse(nestedSearch(searchState, bestTotal, numLevels, level)(_))
         }
         results
           .map(_.maxBy(_._1.score))
