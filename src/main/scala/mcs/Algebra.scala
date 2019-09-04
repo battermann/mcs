@@ -8,9 +8,9 @@ final case class Result[Move, Score](
 )
 
 final case class GameState[Move, Position, Score](
-    playedMoves: List[Move],
-    score: Score,
-    position: Position,
+  playedMoves: List[Move],
+  score: Score,
+  position: Position,
 )
 
 trait Game[F[_], Move, Position, Score] {
@@ -26,12 +26,13 @@ object Game {
     import cats.Monad
     import cats.implicits._
 
-    def simulationIsTerminal[F[_]: Monad, Move, Position, Score](gameState: GameState[Move, Position, Score])(
-        implicit ev: Game[F, Move, Position, Score]): F[Boolean] =
+    def simulationIsTerminal[F[_]: Monad, Move, Position, Score](
+      gameState: GameState[Move, Position, Score]
+    )(implicit ev: Game[F, Move, Position, Score]): F[Boolean] =
       ev.simulation(gameState).map(ev.legalMoves).map(_.isEmpty)
 
-    def legalMoveModifiesGameState[F[_]: Monad, Move, Position, Score](gameState: GameState[Move, Position, Score], move: Move)(
-        implicit ev: Game[F, Move, Position, Score]): Boolean = {
+    def legalMoveModifiesGameState[F[_]: Monad, Move, Position, Score](gameState: GameState[Move, Position, Score],
+                                                                       move: Move)(implicit ev: Game[F, Move, Position, Score]): Boolean = {
       val legalMoves    = ev.legalMoves(gameState)
       val nextGameState = ev.applyMove(gameState, move)
       !legalMoves.contains(move) || (nextGameState.position != gameState.position && nextGameState.playedMoves.length == gameState.playedMoves.length + 1)

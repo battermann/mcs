@@ -5,9 +5,10 @@ import cats.implicits._
 
 object ListUtils {
   def isSuffixOf[A: Eq](xs: List[A], ys: List[A]): Boolean =
-    if (xs.length > ys.length ) {
+    if (xs.length > ys.length) {
       false
-    } else {
+    }
+    else {
       ys.drop(ys.length - xs.length) === xs
     }
 }

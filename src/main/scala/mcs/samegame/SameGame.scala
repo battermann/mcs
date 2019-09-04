@@ -18,12 +18,13 @@ object SameGame {
     val height = board.columns.head.cells.length
     if (position.col >= 0 && position.col < width && position.row >= 0 && position.row < height) {
       board.columns(position.col).cells(position.row)
-    } else {
+    }
+    else {
       Empty
     }
   }
 
-  private def findAdjacentWithSameColor(board: Board, position: Position): Set[Position] = {
+  private def findAdjacentWithSameColor(board: Board, position: Position): Set[Position] =
     getCellState(board, position) match {
       case Filled(color) =>
         Set(
@@ -40,73 +41,72 @@ object SameGame {
 
       case Empty => Set()
     }
-  }
 
-  private def hasValidMoves(board: Board): Boolean = {
-    board.columns.zipWithIndex
-      .exists {
-        case (column, colIndex) =>
-          column.cells.zipWithIndex
-            .exists {
-              case (_, rowIndex) =>
-                findAdjacentWithSameColor(board, Position(colIndex, rowIndex)).nonEmpty
-            }
-      }
-  }
+  private def hasValidMoves(board: Board): Boolean =
+    board.columns.zipWithIndex.exists {
+      case (column, colIndex) =>
+        column.cells.zipWithIndex.exists {
+          case (_, rowIndex) =>
+            findAdjacentWithSameColor(board, Position(colIndex, rowIndex)).nonEmpty
+        }
+    }
 
-  private def filledCells(board: Board): Int = {
+  private def filledCells(board: Board): Int =
     board.columns
-      .foldLeft(0)((total, column) =>
-        column.cells.foldLeft(total)((count, cell) =>
-          cell match {
-            case Filled(_) => count + 1
-            case Empty     => count
-        }))
-  }
+      .foldLeft(0)(
+        (total, column) =>
+          column.cells.foldLeft(total)(
+            (count, cell) =>
+              cell match {
+                case Filled(_) => count + 1
+                case Empty     => count
+            }
+        )
+      )
 
   private def findGroup(board: Board, position: Position): Option[Group] = {
-    def find(toSearch: Set[Position], group: Set[Position]): Set[Position] = {
+    def find(toSearch: Set[Position], group: Set[Position]): Set[Position] =
       if (toSearch.isEmpty) {
         group
-      } else {
+      }
+      else {
         val head               = toSearch.head
         val cellsWithSameColor = findAdjacentWithSameColor(board, head)
         val cellsFoundSoFar    = group + head
         val stillToSearch      = (cellsWithSameColor ++ toSearch.tail) -- cellsFoundSoFar
         find(stillToSearch, cellsFoundSoFar)
       }
-    }
 
     getCellState(board, position) match {
       case Filled(color) =>
         val positions = find(Set(position), Set.empty)
         if (positions.size > 1) {
           Some(Group(color, positions))
-        } else {
+        }
+        else {
           None
         }
       case _ => None
     }
   }
 
-  private def removeGroup(board: Board, group: Group): Board = {
+  private def removeGroup(board: Board, group: Group): Board =
     board.map {
       case (column, colIndex) =>
         column.map {
           case (cell, rowIndex) =>
             if (group.positions.contains(Position(colIndex, rowIndex))) {
               Empty
-            } else {
+            }
+            else {
               cell
             }
         }.shiftDown
     }.shiftLeft
-  }
 
-  private def play(board: Board, position: Position): Option[(Board, Int)] = {
+  private def play(board: Board, position: Position): Option[(Board, Int)] =
     findGroup(board, position)
       .map(g => (removeGroup(board, g), calcScore(g)))
-  }
 
   private def board(game: Game): Board =
     game match {
@@ -147,9 +147,11 @@ object SameGame {
 
     if (hasValidMoves(board)) {
       InProgress(board, score)
-    } else if (isEmpty(board)) {
+    }
+    else if (isEmpty(board)) {
       Finished(board, score + bonus)
-    } else {
+    }
+    else {
       Finished(board, score + penalty(filledCells(board)))
     }
   }
@@ -164,8 +166,7 @@ object SameGame {
   def legalMoves(game: Game): List[Position] =
     game match {
       case InProgress(board, _) =>
-        board.columns.zipWithIndex
-          .flatMap { case (col, colIndex) => col.cells.zipWithIndex.map { case (_, rowIndex) => Position(colIndex, rowIndex) } }
+        board.columns.zipWithIndex.flatMap { case (col, colIndex) => col.cells.zipWithIndex.map { case (_, rowIndex) => Position(colIndex, rowIndex) } }
           .flatMap(pos => findGroup(board, pos).toList)
           .distinct
           .flatMap(g => g.positions.headOption.toList)

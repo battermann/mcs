@@ -38,13 +38,13 @@ object Interpreters {
 
     def isPrefixOf: List[Move] => List[Move] => Boolean = currentPath => bestPath => ListUtils.isSuffixOf(currentPath, bestPath)(Eq.fromUniversalEquals)
 
-    def next(currentPath: List[Move], bestPath: List[Move]): Option[Move] = {
+    def next(currentPath: List[Move], bestPath: List[Move]): Option[Move] =
       if (isPrefixOf(currentPath)(bestPath) && currentPath.length < bestPath.length) {
         bestPath(bestPath.length - 1 - currentPath.length).some
-      } else {
+      }
+      else {
         None
       }
-    }
   }
 
   implicit val loggerIO: Logger[IO] = new Logger[IO] {
